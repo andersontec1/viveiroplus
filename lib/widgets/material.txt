@@ -1,0 +1,22 @@
+// main.dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Viveiro Plus',
+      theme: ThemeData(
+        fontFamily: 'Montserrat', // Troque pelo nome da fonte desejada
+        // Outras configurações de tema...
+      ),
+      home: const TelaInicial(),
+    );
+  }
+}

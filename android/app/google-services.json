@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "729578249550",
+    "project_id": "viveiroplus",
+    "storage_bucket": "viveiroplus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:729578249550:android:e9d211d0349d676c19d21f",
+        "android_client_info": {
+          "package_name": "com.example.viveiro_plus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbEhLD3RqOdlfdfsHCq2NCpWtP_DhrW7Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
