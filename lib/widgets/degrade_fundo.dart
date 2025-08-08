@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 class DegradeFundo extends StatelessWidget {
+  const DegradeFundo({required this.child, super.key});
   final Widget child;
-  const DegradeFundo({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {

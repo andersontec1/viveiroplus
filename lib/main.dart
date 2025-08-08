@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:viveiro_plus/screens/tela_login.dart';
 import 'package:viveiro_plus/screens/menu_principal.dart';
 import 'package:viveiro_plus/firebase_options.dart';
@@ -39,15 +40,38 @@ class MyApp extends StatelessWidget {
         textTheme: ThemeData.light().textTheme.apply(
           bodyColor: Colors.black,
           displayColor: Colors.black,
+        ).copyWith(
+          displayLarge: ThemeData.light().textTheme.displayLarge?.copyWith(fontWeight: FontWeight.bold),
+          displayMedium: ThemeData.light().textTheme.displayMedium?.copyWith(fontWeight: FontWeight.bold),
+          displaySmall: ThemeData.light().textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold),
+          headlineLarge: ThemeData.light().textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold),
+          headlineMedium: ThemeData.light().textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+          headlineSmall: ThemeData.light().textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          titleLarge: ThemeData.light().textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          titleMedium: ThemeData.light().textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          titleSmall: ThemeData.light().textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          bodyLarge: ThemeData.light().textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+          bodyMedium: ThemeData.light().textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+          bodySmall: ThemeData.light().textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
+          labelLarge: ThemeData.light().textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+          labelMedium: ThemeData.light().textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+          labelSmall: ThemeData.light().textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
       ),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('pt', 'BR'),
+      ],
       home: const TelaLogin(),
       onGenerateRoute: _onGenerateRouteWithFade,
     );
   }
-
-  Route<dynamic> _onGenerateRouteWithFade(RouteSettings settings) {
-    switch (settings.name) {
+Route<dynamic> _onGenerateRouteWithFade(RouteSettings settings) {
+  switch (settings.name) {
       case '/menu':
       case '/verificacao':
         return _buildFadeRoute(FutureBuilder(

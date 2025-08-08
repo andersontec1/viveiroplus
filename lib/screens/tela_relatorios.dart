@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../widgets/degrade_fundo.dart'; // adicione este import
-import 'exportador_csv_mobile.dart' if (dart.library.html) 'exportador_csv_web.dart';
+import 'exportador_csv_mobile.dart' if (dart.library.html) 'exportador_csv_web.dart' as exportador;
+import 'package:fl_chart/fl_chart.dart';
 
 class TelaRelatorios extends StatefulWidget {
   const TelaRelatorios({super.key});
@@ -128,11 +129,35 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
       ]);
     }
 
-    exportarCsv(rows, nomeArquivo: 'relatorio.csv');
+    exportador.exportarCsv(rows, nomeArquivo: 'relatorio.csv');
+  }
+
+  Widget _buildLegenda(String simbolo, String descricao, Color cor) {
+    return Row(
+      children: [
+        Text(simbolo, style: TextStyle(fontSize: 18, color: cor)),
+        const SizedBox(width: 4),
+        Text(descricao, style: const TextStyle(fontSize: 16)),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Cálculo dos status para gráfico
+    final analiseStatus = horariosAnalise.map((h) => _status(registrosAnalise.map((r) => r['hora'] as DateTime).toList(), h['ini'], h['fim'])).toList();
+    final racaoStatus = horariosRacao.map((h) => _status(registrosRacao.map((r) => r['hora'] as DateTime).toList(), h['ini'], h['fim'])).toList();
+    final analiseCount = [
+      analiseStatus.where((s) => s == '✅').length,
+      analiseStatus.where((s) => s == '⚠️').length,
+      analiseStatus.where((s) => s == '❌').length,
+    ];
+    final racaoCount = [
+      racaoStatus.where((s) => s == '✅').length,
+      racaoStatus.where((s) => s == '⚠️').length,
+      racaoStatus.where((s) => s == '❌').length,
+    ];
+
     return Scaffold(
       appBar: AppBar(title: const Text('Relatório por Horário')),
       body: DegradeFundo(
@@ -140,6 +165,64 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
+              // Gráfico de barras resumo
+              SizedBox(
+                height: 180,
+                child: BarChart(
+                  BarChartData(
+                    barGroups: [
+                      BarChartGroupData(x: 0, barRods: [
+                        BarChartRodData(toY: analiseCount[0].toDouble(), color: Colors.green, width: 18),
+                        BarChartRodData(toY: analiseCount[1].toDouble(), color: Colors.orange, width: 18),
+                        BarChartRodData(toY: analiseCount[2].toDouble(), color: Colors.red, width: 18),
+                      ]),
+                      BarChartGroupData(x: 1, barRods: [
+                        BarChartRodData(toY: racaoCount[0].toDouble(), color: Colors.green, width: 18),
+                        BarChartRodData(toY: racaoCount[1].toDouble(), color: Colors.orange, width: 18),
+                        BarChartRodData(toY: racaoCount[2].toDouble(), color: Colors.red, width: 18),
+                      ]),
+                    ],
+                    titlesData: FlTitlesData(
+                      leftTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: true, reservedSize: 28),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            switch (value.toInt()) {
+                              case 0:
+                                return const Text('Análise', style: TextStyle(fontWeight: FontWeight.bold));
+                              case 1:
+                                return const Text('Ração', style: TextStyle(fontWeight: FontWeight.bold));
+                            }
+                            return const SizedBox();
+                          },
+                        ),
+                      ),
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    barTouchData: BarTouchData(enabled: true),
+                    gridData: const FlGridData(show: true),
+                    borderData: FlBorderData(show: false),
+                    groupsSpace: 32,
+                    maxY: [analiseCount, racaoCount].expand((e) => e).fold(0, (a, b) => a > b ? a : b).toDouble() + 1,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildLegenda('✅', 'No horário', Colors.green),
+                  const SizedBox(width: 12),
+                  _buildLegenda('⚠️', 'Fora horário', Colors.orange),
+                  const SizedBox(width: 12),
+                  _buildLegenda('❌', 'Não realizado', Colors.red),
+                ],
+              ),
+              const SizedBox(height: 12),
               Row(children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(

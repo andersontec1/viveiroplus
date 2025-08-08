@@ -20,6 +20,8 @@ class LoginModel extends ChangeNotifier {
   bool rememberMe = false;
   String usuarioSalvo = '';
   String senhaSalva = '';
+  String? funcao;
+  List<String> permissoes = [];
 
   Future<void> _inicializar() async {
     final u = await _secureStorage.read(key: 'usuario');
@@ -37,6 +39,11 @@ class LoginModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void limparErro() {
+    error = null;
+    notifyListeners();
+  }
+
   Future<void> login(String nomeUsuario, String senha, BuildContext ctx) async {
     error = null;
     isLoading = true;
@@ -44,7 +51,7 @@ class LoginModel extends ChangeNotifier {
 
     final conn = await _connectivity.checkConnectivity();
     if (conn == ConnectivityResult.none) {
-      error = 'Sem conexão. Verifique sua internet.';
+      error = '🌐 Sem conexão com a internet.\nVerifique sua conexão e tente novamente.';
       isLoading = false;
       notifyListeners();
       return;
@@ -73,7 +80,14 @@ class LoginModel extends ChangeNotifier {
       if (user == null) throw FirebaseAuthException(code: 'unknown');
 
       final doc = await _firestore.collection('usuarios').doc(user.uid).get();
-      final funcao = (doc.data()?['funcao'] ?? '').toString().toLowerCase();
+      funcao = (doc.data()?['funcao'] ?? '').toString().toLowerCase();
+      // Carrega permissoes (lista de strings), se existir
+      final permissoesFirestore = doc.data()?['permissoes'];
+      if (permissoesFirestore is List) {
+        permissoes = permissoesFirestore.map((e) => e.toString()).toList();
+      } else {
+        permissoes = [];
+      }
 
       // Salva credenciais localmente se ativado
       if (rememberMe) {
@@ -89,16 +103,14 @@ class LoginModel extends ChangeNotifier {
 
       if (!ctx.mounted) return;
 
-      // Redirecionamento baseado na função
-      const funcoesPermitidas = [
+      // Redirecionamento baseado em permissões ou função (compatibilidade)
+      if ((permissoes.isNotEmpty) || (funcao != null && [
         'admin',
         'gerente',
         'supervisor',
         'arraçoador',
         'registrador',
-      ];
-
-      if (funcoesPermitidas.contains(funcao)) {
+      ].contains(funcao))) {
         Navigator.of(ctx).pushReplacementNamed('/menu');
       } else {
         ScaffoldMessenger.of(ctx).showSnackBar(
@@ -109,17 +121,21 @@ class LoginModel extends ChangeNotifier {
         );
       }
     } on TimeoutException {
-      error = 'Servidor demorou para responder.';
+      error = '⏱️ Servidor demorou para responder.\nTente novamente em alguns segundos.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
-        error = 'Usuário não encontrado';
+        error = '👤 Usuário não encontrado.\nVerifique se digitou corretamente.';
       } else if (e.code == 'wrong-password') {
-        error = 'Senha incorreta';
+        error = '🔒 Senha incorreta.\nVerifique sua senha e tente novamente.';
+      } else if (e.code == 'too-many-requests') {
+        error = '🚫 Muitas tentativas de login.\nTente novamente em alguns minutos.';
+      } else if (e.code == 'network-request-failed') {
+        error = '🌐 Falha na conexão.\nVerifique sua internet e tente novamente.';
       } else {
-        error = 'Erro no login (${e.code}).';
+        error = '❌ Erro no login.\nCódigo: ${e.code}';
       }
     } catch (e) {
-      error = 'Erro inesperado: ${e.toString()}';
+      error = '⚠️ Erro inesperado.\nTente novamente ou contate o suporte.';
     }
 
     isLoading = false;

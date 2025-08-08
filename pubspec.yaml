@@ -1,14 +1,17 @@
+fl_chart: ^0.66.0
 name: viveiro_plus
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
   sdk: '>=3.8.0 <4.0.0'
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.8
   qr_flutter: ^4.0.0
@@ -17,10 +20,11 @@ dependencies:
   path_provider: ^2.1.2
   universal_html: ^2.2.3  # 👈 adicionado aqui
   # Utilitários
-  intl: ^0.19.0
+  intl: ^0.20.2
   mobile_scanner: ^3.5.2
   flutter_riverpod: ^2.5.1
   package_info_plus: ^8.3.0
+  fl_chart: ^0.66.0
 
   # Firebase
   firebase_core: ^2.27.0
@@ -61,9 +65,7 @@ flutter_icons:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/logo.png
-    - assets/images/app_icon.png
-    - assets/images/mascote.png
+    - assets/images/
   fonts:
     - family: Poppins
       fonts:

@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/degrade_fundo.dart'; // adicione este import
+import '../widgets/degrade_fundo.dart';
 
 class TelaArracoador extends StatefulWidget {
   const TelaArracoador({super.key});
@@ -20,7 +20,16 @@ class _TelaArracoadorState extends State<TelaArracoador> {
 
   String? _tipoSelecionado;
   String? _codigoSelecionado;
-  Map<String, String> _destinos = {};
+  String? _probioticoSelecionado;
+  bool _aplicarProbiotico = false;
+
+  Map<String, String> _viveiros = {};
+  Map<String, String> _bercarios = {};
+  List<String> _listaProbioticos = [];
+  List<String> _listaSuplementos = [];
+  String? _suplementoSelecionado;
+  bool _aplicarSuplemento = false;
+
   DateTime _horaAtual = DateTime.now();
   String _funcaoUsuario = '';
   bool _saving = false;
@@ -30,6 +39,8 @@ class _TelaArracoadorState extends State<TelaArracoador> {
   void initState() {
     super.initState();
     _carregarDestinos();
+    _carregarProbioticos();
+    _carregarSuplementos();
     _carregarFuncao();
     _quantidadeCtrl.addListener(_verificarCampos);
     _sobrasCtrl.addListener(_verificarCampos);
@@ -40,7 +51,8 @@ class _TelaArracoadorState extends State<TelaArracoador> {
     setState(() {
       _temCampoPreenchido = _quantidadeCtrl.text.isNotEmpty ||
           _sobrasCtrl.text.isNotEmpty ||
-          _obsCtrl.text.isNotEmpty;
+          _obsCtrl.text.isNotEmpty ||
+          _aplicarProbiotico;
     });
   }
 
@@ -54,18 +66,62 @@ class _TelaArracoadorState extends State<TelaArracoador> {
   }
 
   Future<void> _carregarDestinos() async {
-    final mapa = <String, String>{};
-    final snapshotViveiros = await FirebaseFirestore.instance.collection('viveiros').get();
-    for (final doc in snapshotViveiros.docs) {
-      final data = doc.data();
-      mapa[data['codigo']] = data['nome'];
+    try {
+      // Carregar viveiros
+      final snapshotViveiros = await FirebaseFirestore.instance.collection('viveiros').get();
+      final viveiros = <String, String>{};
+      for (final doc in snapshotViveiros.docs) {
+        final data = doc.data();
+        final codigo = data['codigo']?.toString() ?? '';
+        final nome = data['nome']?.toString() ?? '';
+        if (codigo.isNotEmpty && nome.isNotEmpty) {
+          viveiros[codigo] = nome;
+        }
+      }
+      
+      // Carregar berçários
+      final snapshotBercarios = await FirebaseFirestore.instance.collection('bercarios').get();
+      final bercarios = <String, String>{};
+      for (final doc in snapshotBercarios.docs) {
+        final data = doc.data();
+        final codigo = data['codigo']?.toString() ?? '';
+        final nome = data['nome']?.toString() ?? '';
+        if (codigo.isNotEmpty && nome.isNotEmpty) {
+          bercarios[codigo] = nome;
+        }
+      }
+      
+      setState(() {
+        _viveiros = viveiros;
+        _bercarios = bercarios;
+      });
+      
+      print('DEBUG REGISTRO: Viveiros carregados: $_viveiros');
+      print('DEBUG REGISTRO: Berçários carregados: $_bercarios');
+    } catch (e) {
+      print('DEBUG REGISTRO: Erro ao carregar destinos: $e');
     }
-    final snapshotBercarios = await FirebaseFirestore.instance.collection('bercarios').get();
-    for (final doc in snapshotBercarios.docs) {
-      final data = doc.data();
-      mapa[data['codigo']] = data['nome'];
-    }
-    setState(() => _destinos = mapa);
+  }
+
+  Future<void> _carregarProbioticos() async {
+    final snap = await FirebaseFirestore.instance
+        .collection('insumos')
+        .where('tipo', isEqualTo: 'Probiótico')
+        .get();
+
+    setState(() {
+      _listaProbioticos = snap.docs.map((doc) => doc['nome'].toString()).toList();
+    });
+  }
+
+  Future<void> _carregarSuplementos() async {
+    final snap = await FirebaseFirestore.instance
+        .collection('insumos')
+        .where('tipo', isEqualTo: 'Suplemento')
+        .get();
+    setState(() {
+      _listaSuplementos = snap.docs.map((doc) => doc['nome'].toString()).toList();
+    });
   }
 
   Future<bool> _destinoExiste(String codigo, String tipo) async {
@@ -74,12 +130,23 @@ class _TelaArracoadorState extends State<TelaArracoador> {
     return snap.docs.isNotEmpty;
   }
 
+  Future<void> _darBaixaEstoque(String nome, num quantidade) async {
+    final snap = await FirebaseFirestore.instance
+        .collection('insumos')
+        .where('nome', isEqualTo: nome)
+        .limit(1)
+        .get();
+    if (snap.docs.isNotEmpty) {
+      final doc = snap.docs.first;
+      final estoqueAtual = (doc['estoque'] ?? 0) as num;
+      await doc.reference.update({'estoque': estoqueAtual - quantidade});
+    }
+  }
+
   Future<void> _salvarRegistro() async {
     if (!_formKey.currentState!.validate()) return;
     if (_tipoSelecionado == null || _codigoSelecionado == null) return;
-
     setState(() => _saving = true);
-
     final existe = await _destinoExiste(_codigoSelecionado!, _tipoSelecionado!);
     if (!existe) {
       if (!mounted) return;
@@ -98,28 +165,38 @@ class _TelaArracoadorState extends State<TelaArracoador> {
       );
       return;
     }
-
-    final nome = _destinos[_codigoSelecionado!] ?? '---';
+    final nome = _tipoSelecionado == 'viveiro' 
+        ? (_viveiros[_codigoSelecionado!] ?? '---')
+        : (_bercarios[_codigoSelecionado!] ?? '---');
     final doc = FirebaseFirestore.instance.collection('racao').doc();
-
     final user = FirebaseAuth.instance.currentUser;
     String registradoPor = '—';
     if (user != null) {
       final usuarioDoc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
       registradoPor = usuarioDoc.data()?['nome'] ?? '—';
     }
-
+    final quantidadeRacao = double.tryParse(_quantidadeCtrl.text.replaceAll(',', '.')) ?? 0;
+    final suplementoAplicado = _aplicarSuplemento ? _suplementoSelecionado : null;
     await doc.set({
       'tipoDestino': _tipoSelecionado,
       'codigo': _codigoSelecionado,
       'viveiro': nome,
-      'quantidade': double.tryParse(_quantidadeCtrl.text.replaceAll(',', '.')) ?? 0,
+      'quantidade': quantidadeRacao,
       'sobras': double.tryParse(_sobrasCtrl.text.replaceAll(',', '.')) ?? 0,
       'observacoes': _obsCtrl.text.trim(),
+      'probióticoAplicado': _aplicarProbiotico ? _probioticoSelecionado : null,
+      'suplementoAplicado': suplementoAplicado,
       'timestamp': Timestamp.fromDate(_horaAtual),
       'registradoPor': registradoPor,
     });
-
+    // Dar baixa no estoque
+    await _darBaixaEstoque('Ração', quantidadeRacao);
+    if (_aplicarProbiotico && _probioticoSelecionado != null) {
+      await _darBaixaEstoque(_probioticoSelecionado!, 1);
+    }
+    if (_aplicarSuplemento && _suplementoSelecionado != null) {
+      await _darBaixaEstoque(_suplementoSelecionado!, 1);
+    }
     if (!mounted) return;
     await showDialog(
       context: context,
@@ -168,14 +245,20 @@ class _TelaArracoadorState extends State<TelaArracoador> {
               child: ListView(
                 children: [
                   const SizedBox(height: 10),
-                  Center(
+                  const Center(
                     child: Column(
-                      children: const [
-                        Icon(Icons.restaurant_menu, size: 48),
+                      children: [
+                        Icon(Icons.set_meal, size: 48, color: Colors.teal),
                         SizedBox(height: 6),
                         Text(
                           'Registrar Ração',
-                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.teal),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Registre a quantidade de ração fornecida e sobras para cada viveiro ou berçário',
+                          style: TextStyle(fontSize: 15, color: Colors.teal, fontWeight: FontWeight.w400),
+                          textAlign: TextAlign.center,
                         ),
                         SizedBox(height: 20),
                       ],
@@ -191,7 +274,10 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                       DropdownMenuItem(value: 'viveiro', child: Text('Viveiro')),
                       DropdownMenuItem(value: 'bercario', child: Text('Berçário')),
                     ],
-                    onChanged: (value) => setState(() => _tipoSelecionado = value),
+                    onChanged: (value) => setState(() {
+                      _tipoSelecionado = value;
+                      _codigoSelecionado = null; // Limpar código quando tipo muda
+                    }),
                     validator: (v) => v == null ? 'Escolha viveiro ou berçário' : null,
                   ),
                   const SizedBox(height: 12),
@@ -201,16 +287,35 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                       labelText: 'Código',
                       prefixIcon: Icon(Icons.code),
                     ),
-                    items: _destinos.entries
-                        .where((e) {
-                          final isBercario = e.key.toLowerCase().contains('b');
-                          return _tipoSelecionado == 'bercario' ? isBercario : !isBercario;
-                        })
-                        .map((e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text('${e.value} (cód: ${e.key})'),
-                            ))
-                        .toList(),
+                    items: (() {
+                      List<DropdownMenuItem<String>> items = [];
+                      
+                      if (_tipoSelecionado == 'viveiro') {
+                        // Mostrar apenas viveiros
+                        final viveirosSorted = _viveiros.entries.toList()
+                          ..sort((a, b) => a.key.compareTo(b.key));
+                        
+                        items = viveirosSorted
+                            .map((e) => DropdownMenuItem<String>(
+                                  value: e.key,
+                                  child: Text('${e.value} (${e.key})'),
+                                ))
+                            .toList();
+                      } else if (_tipoSelecionado == 'bercario') {
+                        // Mostrar apenas berçários
+                        final bercariosSorted = _bercarios.entries.toList()
+                          ..sort((a, b) => a.key.compareTo(b.key));
+                        
+                        items = bercariosSorted
+                            .map((e) => DropdownMenuItem<String>(
+                                  value: e.key,
+                                  child: Text('${e.value} (${e.key})'),
+                                ))
+                            .toList();
+                      }
+                      
+                      return items;
+                    })(),
                     onChanged: (value) => setState(() => _codigoSelecionado = value),
                     validator: (v) => v == null ? 'Selecione o código' : null,
                   ),
@@ -218,7 +323,6 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                   TextFormField(
                     controller: _quantidadeCtrl,
                     keyboardType: TextInputType.number,
-                    style: Theme.of(context).textTheme.bodyLarge,
                     decoration: const InputDecoration(
                       labelText: 'Quantidade de Ração (Kg)',
                       prefixIcon: Icon(Icons.restaurant),
@@ -229,17 +333,61 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                   TextFormField(
                     controller: _sobrasCtrl,
                     keyboardType: TextInputType.number,
-                    style: Theme.of(context).textTheme.bodyLarge,
                     decoration: const InputDecoration(
                       labelText: 'Sobras da Última (Kg)',
                       prefixIcon: Icon(Icons.restore_from_trash),
                     ),
                   ),
                   const SizedBox(height: 12),
+                  CheckboxListTile(
+                    value: _aplicarProbiotico,
+                    onChanged: (val) => setState(() {
+                      _aplicarProbiotico = val ?? false;
+                      if (!_aplicarProbiotico) _probioticoSelecionado = null;
+                    }),
+                    title: const Text('Aplicar Probiótico'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  if (_aplicarProbiotico)
+                    DropdownButtonFormField<String>(
+                      value: _probioticoSelecionado,
+                      decoration: const InputDecoration(
+                        labelText: 'Probiótico',
+                        prefixIcon: Icon(Icons.medication),
+                      ),
+                      items: _listaProbioticos
+                          .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                          .toList(),
+                      onChanged: (val) => setState(() => _probioticoSelecionado = val),
+                      validator: (v) => _aplicarProbiotico && v == null ? 'Selecione o probiótico' : null,
+                    ),
+                  // Suplemento
+                  CheckboxListTile(
+                    value: _aplicarSuplemento,
+                    onChanged: (val) => setState(() {
+                      _aplicarSuplemento = val ?? false;
+                      if (!_aplicarSuplemento) _suplementoSelecionado = null;
+                    }),
+                    title: const Text('Aplicar Suplemento'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  if (_aplicarSuplemento)
+                    DropdownButtonFormField<String>(
+                      value: _suplementoSelecionado,
+                      decoration: const InputDecoration(
+                        labelText: 'Suplemento',
+                        prefixIcon: Icon(Icons.medical_services),
+                      ),
+                      items: _listaSuplementos
+                          .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                          .toList(),
+                      onChanged: (val) => setState(() => _suplementoSelecionado = val),
+                      validator: (v) => _aplicarSuplemento && v == null ? 'Selecione o suplemento' : null,
+                    ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: _obsCtrl,
                     maxLines: 2,
-                    style: Theme.of(context).textTheme.bodyLarge,
                     decoration: const InputDecoration(
                       labelText: 'Observações',
                       prefixIcon: Icon(Icons.note_alt),
@@ -267,8 +415,7 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                                 initialTime: TimeOfDay.fromDateTime(_horaAtual),
                               );
                               if (tm != null) {
-                                setState(() => _horaAtual =
-                                    DateTime(dt.year, dt.month, dt.day, tm.hour, tm.minute));
+                                setState(() => _horaAtual = DateTime(dt.year, dt.month, dt.day, tm.hour, tm.minute));
                               }
                             }
                           },

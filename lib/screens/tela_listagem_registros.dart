@@ -3,7 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../widgets/app_scaffold.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../widgets/degrade_fundo.dart'; // adicione este import
+import '../widgets/degrade_fundo.dart';
+import '../helpers/confirmation_helper.dart';
+import 'tela_editar_registro_analise.dart';
 
 class TelaListagemRegistros extends StatefulWidget {
   const TelaListagemRegistros({super.key});
@@ -17,14 +19,21 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
   String? _codigoSelecionado;
   DateTime? _dataInicio;
   DateTime? _dataFim;
-  Map<String, String> _destinos = {}; // código → nome
+  Map<String, String> _viveiros = {};
+  Map<String, String> _bercarios = {};
   String _funcaoUsuario = '';
+  bool _carregado = false;
 
   @override
   void initState() {
     super.initState();
-    _carregarDestinos();
-    _carregarFuncaoUsuario();
+    _carregarTudo();
+  }
+
+  Future<void> _carregarTudo() async {
+    await _carregarDestinos();
+    await _carregarFuncaoUsuario();
+    setState(() => _carregado = true);
   }
 
   Future<void> _carregarFuncaoUsuario() async {
@@ -38,18 +47,41 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
   }
 
   Future<void> _carregarDestinos() async {
-    final mapa = <String, String>{};
-    final snapshotViveiros = await FirebaseFirestore.instance.collection('viveiros').get();
-    for (final doc in snapshotViveiros.docs) {
-      final data = doc.data();
-      mapa[data['codigo']] = data['nome'];
+    try {
+      // Carregar viveiros
+      final snapshotViveiros = await FirebaseFirestore.instance.collection('viveiros').get();
+      final viveiros = <String, String>{};
+      for (final doc in snapshotViveiros.docs) {
+        final data = doc.data();
+        final codigo = data['codigo']?.toString() ?? '';
+        final nome = data['nome']?.toString() ?? '';
+        if (codigo.isNotEmpty && nome.isNotEmpty) {
+          viveiros[codigo] = nome;
+        }
+      }
+      
+      // Carregar berçários
+      final snapshotBercarios = await FirebaseFirestore.instance.collection('bercarios').get();
+      final bercarios = <String, String>{};
+      for (final doc in snapshotBercarios.docs) {
+        final data = doc.data();
+        final codigo = data['codigo']?.toString() ?? '';
+        final nome = data['nome']?.toString() ?? '';
+        if (codigo.isNotEmpty && nome.isNotEmpty) {
+          bercarios[codigo] = nome;
+        }
+      }
+      
+      setState(() {
+        _viveiros = viveiros;
+        _bercarios = bercarios;
+      });
+      
+      print('DEBUG LISTAGEM: Viveiros carregados: $_viveiros');
+      print('DEBUG LISTAGEM: Berçários carregados: $_bercarios');
+    } catch (e) {
+      print('DEBUG LISTAGEM: Erro ao carregar destinos: $e');
     }
-    final snapshotBercarios = await FirebaseFirestore.instance.collection('bercarios').get();
-    for (final doc in snapshotBercarios.docs) {
-      final data = doc.data();
-      mapa[data['codigo']] = data['nome'];
-    }
-    setState(() => _destinos = mapa);
   }
 
   Future<void> _selecionarData({required bool inicio}) async {
@@ -58,6 +90,7 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
       initialDate: DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
+      locale: const Locale('pt', 'BR'),
     );
     if (selecionada != null) {
       setState(() {
@@ -71,88 +104,213 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
   }
 
   Future<void> _confirmarExclusao(String id) async {
-    // Primeiro diálogo de confirmação
-    final confirm1 = await showDialog<bool>(
+    // Usa o helper padrão de confirmação
+    final confirmado = await ConfirmationHelper.showDoubleConfirmation(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Excluir registro?'),
-        content: const Text('Você tem certeza que deseja excluir este registro?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Continuar')),
-        ],
-      ),
+      title: 'Excluir registro?',
+      content: 'Você tem certeza que deseja excluir este registro de análise?',
+      secondTitle: 'Confirma exclusão?',
+      secondContent: 'Esta ação é irreversível. Deseja realmente excluir?',
+      actionLabel: 'Excluir',
+      actionColor: Colors.red,
     );
-    if (confirm1 != true) return;
 
-    // Segundo diálogo de confirmação
-    final confirm2 = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Confirma exclusão?'),
-        content: const Text('Esta ação é irreversível. Deseja realmente excluir?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Não')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Excluir', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-    if (confirm2 == true) {
-      await FirebaseFirestore.instance.collection('registros_diarios').doc(id).delete();
+    if (!confirmado) return;
+
+    try {
+      // Mostra loading
       if (!mounted) return;
-      showDialog(
+      ConfirmationHelper.showLoading(
         context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Sucesso!'),
-          content: const Text('Registro excluído com sucesso.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+        message: 'Excluindo registro...',
+      );
+
+      // Executa a exclusão
+      await FirebaseFirestore.instance.collection('registros_diarios').doc(id).delete();
+      
+      if (!mounted) return;
+      Navigator.pop(context); // Remove o loading
+      
+      // Mostra sucesso
+      await ConfirmationHelper.showSuccess(
+        context: context,
+        title: 'Excluído com sucesso!',
+        content: 'O registro de análise foi removido permanentemente.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Remove o loading se ainda estiver ativo
+      
+      // Mostra erro
+      await ConfirmationHelper.showError(
+        context: context,
+        title: 'Erro na exclusão',
+        content: 'Não foi possível excluir o registro.',
+        error: e.toString(),
       );
     }
   }
 
   void _mostrarDetalhes(Map<String, dynamic> data) {
     final dt = (data['dataHora'] as Timestamp).toDate();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Detalhes do Registro'),
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+    Widget paramDetalhe(String label, String campo, String unidade, {String? ideal}) {
+      final valor = data[campo];
+      final fora = _foraDoIdeal(campo, valor);
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: fora ? Colors.red.shade50 : Colors.teal.shade50,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text('Destino: ${data['nome'] ?? '—'}'),
-            Text('Código: ${data['codigo'] ?? '—'}'),
-            Text('pH: ${data['ph']}'),
-            Text('Oxigênio: ${data['oxigenio']} mg/L'),
-            Text('Temperatura: ${data['temperatura']} °C'),
-            if (data['salinidade'] != null) Text('Salinidade: ${data['salinidade']} ppt'),
-            Text('Observações: ${data['observacoes'] ?? '—'}'),
-            Text('Data/Hora: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}'),
-            Text('Registrado por: ${data['registradoPor'] ?? '—'}'),
+            if (fora)
+              const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 18),
+            if (!fora)
+              const Icon(Icons.check_circle, color: Colors.teal, size: 18),
+            const SizedBox(width: 6),
+            Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              valor != null ? valor.toString() : '—',
+              style: TextStyle(
+                color: fora ? Colors.red : Colors.teal.shade900,
+                fontWeight: fora ? FontWeight.bold : FontWeight.w600,
+              ),
+            ),
+            if (unidade.isNotEmpty) Text(' $unidade'),
+            if (fora && ideal != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: Text('(Ideal: $ideal)', style: const TextStyle(color: Colors.teal, fontSize: 12)),
+              ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fechar')),
-        ],
-      ),
+      );
+    }
+    final editadoPor = data['editadoPor'];
+    final editadoEm = data['editadoEm'];
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Container(
+          padding: const EdgeInsets.all(0),
+          constraints: const BoxConstraints(maxHeight: 600), // Limita a altura máxima
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFB2DFDB),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                child: const Column(
+                  children: [
+                    Icon(Icons.analytics, color: Colors.teal, size: 38),
+                    SizedBox(height: 6),
+                    Text('Detalhes do Registro', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  ],
+                ),
+              ),
+              Expanded( // Permite que o conteúdo expand e seja scrollable
+                child: SingleChildScrollView( // Adiciona scroll quando necessário
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Destino: ${data['nome'] ?? '—'}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text('Código: ${data['codigo'] ?? '—'}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 10),
+                      paramDetalhe('pH da Água', 'ph', '', ideal: '7.5 – 8.5'),
+                      paramDetalhe('Oxigênio Dissolvido', 'oxigenio', 'mg/L', ideal: '5.0 – 8.0'),
+                      paramDetalhe('Temperatura (°C)', 'temperatura', '°C', ideal: '28.0 – 32.0'),
+                      paramDetalhe('Turbidez (NTU)', 'turbidez', 'NTU', ideal: '0 – 50'),
+                      paramDetalhe('Porcentagem de Saturação (%)', 'saturacao_percentual', '%', ideal: '80 – 120'),
+                      paramDetalhe('Saturação de O2 Dissolvido (%)', 'saturacao_oxigenio', '%', ideal: '80 – 120'),
+                      paramDetalhe('Salinidade (ppt)', 'salinidade', 'ppt', ideal: '15.0 – 25.0'),
+                      paramDetalhe('Cálcio (mg/L)', 'calcio', 'mg/L', ideal: '100 – 300'),
+                      paramDetalhe('Nitrito (mg/L)', 'nitrito', 'mg/L', ideal: '≤ 1.0'),
+                      paramDetalhe('Amônia (mg/L)', 'amonia', 'mg/L', ideal: '≤ 0.5'),
+                      // Removidos: alcalinidade, dureza, transparência
+                      const SizedBox(height: 14),
+                      const Divider(),
+                      const SizedBox(height: 6),
+                      const Text('Observações:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(data['observacoes'] ?? '—', style: const TextStyle(fontStyle: FontStyle.italic)),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today, size: 16, color: Colors.teal),
+                          const SizedBox(width: 4),
+                          Text('Data/Hora: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}'),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          const Icon(Icons.person, size: 16, color: Colors.teal),
+                          const SizedBox(width: 4),
+                          Text('Registrado por: ${data['registradoPor'] ?? '—'}'),
+                        ],
+                      ),
+                      if (editadoPor != null && editadoPor.toString().isNotEmpty)
+                        Row(
+                          children: [
+                            const Icon(Icons.edit, size: 16, color: Colors.deepOrange),
+                            const SizedBox(width: 4),
+                            Text('Editado por: $editadoPor', style: const TextStyle(color: Colors.deepOrange)),
+                            if (editadoEm != null)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Text(
+                                  'em: '
+                                  '${editadoEm is Timestamp ? DateFormat('dd/MM/yyyy HH:mm').format(editadoEm.toDate()) : editadoEm.toString()}',
+                                  style: const TextStyle(color: Colors.deepOrange, fontSize: 12),
+                                ),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Fechar', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      )
     );
   }
 
   void _editarRegistro(String docId, Map<String, dynamic> data) {
-    // Implemente aqui a navegação para tela de edição, se desejar.
-    // Exemplo: Navigator.push(context, MaterialPageRoute(builder: (_) => TelaEditarRegistro(...)));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Funcionalidade de edição não implementada.')),
+    if (!['admin', 'gerente', 'supervisor'].contains(_funcaoUsuario)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Você não tem permissão para editar este registro.')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TelaEditarRegistroAnalise(
+          docId: docId,
+          data: data,
+          onSalvo: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Registro atualizado com sucesso!')),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -167,8 +325,29 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
         return val < 5.0 || val > 8.0;
       case 'temperatura':
         return val < 28.0 || val > 32.0;
+      case 'turbidez':
+        return val < 0.0 || val > 50.0;
+      case 'saturacao_percentual':
+        return val < 80.0 || val > 120.0;
+      case 'saturacao_oxigenio':
+        return val < 80.0 || val > 120.0;
+      case 'salinidade':
+        return val < 15.0 || val > 25.0;
+      case 'calcio':
+        return val < 100.0 || val > 300.0;
+      case 'nitrito':
+        return val > 1.0;
+      case 'amonia':
+        return val > 0.5;
+      case 'alcalinidade':
+        return val < 80.0 || val > 120.0;
+      case 'dureza':
+        return val < 50.0 || val > 150.0;
+      case 'transparencia':
+        return val < 30.0 || val > 40.0;
+      default:
+        return false;
     }
-    return false;
   }
 
   String _rotuloData(DateTime data) {
@@ -185,6 +364,15 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_carregado) {
+      return const AppScaffold(
+        title: 'Registros de Análise',
+        body: DegradeFundo(
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
     Query registrosRef = FirebaseFirestore.instance.collection('registros_diarios');
 
     if (_tipoSelecionado != null) {
@@ -237,16 +425,53 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                       prefixIcon: Icon(Icons.search),
                       border: OutlineInputBorder(),
                     ),
-                    items: _destinos.entries
-                        .where((e) {
-                          final isBercario = e.key.toLowerCase().contains('b');
-                          return _tipoSelecionado == 'bercario' ? isBercario : !isBercario;
-                        })
-                        .map((e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text('${e.value} (cód: ${e.key})'),
-                            ))
-                        .toList(),
+                    items: (() {
+                      List<DropdownMenuItem<String>> items = [];
+                      
+                      if (_tipoSelecionado == 'viveiro') {
+                        // Mostrar apenas viveiros
+                        final viveirosSorted = _viveiros.entries.toList()
+                          ..sort((a, b) => a.key.compareTo(b.key));
+                        
+                        items = viveirosSorted
+                            .map((e) => DropdownMenuItem<String>(
+                                  value: e.key,
+                                  child: Text('${e.value} (${e.key})'),
+                                ))
+                            .toList();
+                      } else if (_tipoSelecionado == 'bercario') {
+                        // Mostrar apenas berçários
+                        final bercariosSorted = _bercarios.entries.toList()
+                          ..sort((a, b) => a.key.compareTo(b.key));
+                        
+                        items = bercariosSorted
+                            .map((e) => DropdownMenuItem<String>(
+                                  value: e.key,
+                                  child: Text('${e.value} (${e.key})'),
+                                ))
+                            .toList();
+                      } else {
+                        // Se nenhum tipo selecionado, mostrar todos mas separados
+                        final viveiroItems = _viveiros.entries
+                            .map((e) => DropdownMenuItem<String>(
+                                  value: e.key,
+                                  child: Text('Viveiro ${e.value} (${e.key})'),
+                                ))
+                            .toList();
+                        
+                        final bercarioItems = _bercarios.entries
+                            .map((e) => DropdownMenuItem<String>(
+                                  value: e.key,
+                                  child: Text('Berçário ${e.value} (${e.key})'),
+                                ))
+                            .toList();
+                        
+                        items = [...viveiroItems, ...bercarioItems];
+                        items.sort((a, b) => a.value!.compareTo(b.value!));
+                      }
+                      
+                      return items;
+                    })(),
                     onChanged: (value) => setState(() => _codigoSelecionado = value),
                   ),
                   const SizedBox(height: 8),
@@ -325,9 +550,27 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                           final destino = data['nome'] ?? data['codigo'] ?? '—';
                           final por = data['registradoPor'] ?? '—';
 
-                          final phAlerta = _foraDoIdeal('ph', data['ph']);
-                          final oxAlerta = _foraDoIdeal('oxigenio', data['oxigenio']);
-                          final tempAlerta = _foraDoIdeal('temperatura', data['temperatura']);
+                          // Checagem de todos os parâmetros relevantes para chips de alerta
+                          final chips = <Widget>[];
+                          void addChip(bool cond, String label, Color color) {
+                            if (cond) {
+                              chips.add(Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Chip(label: Text(label), backgroundColor: color, labelStyle: const TextStyle(color: Colors.white)),
+                              ));
+                            }
+                          }
+                          addChip(_foraDoIdeal('ph', data['ph']), 'pH fora', Colors.redAccent);
+                          addChip(_foraDoIdeal('oxigenio', data['oxigenio']), 'O2 fora', Colors.orangeAccent);
+                          addChip(_foraDoIdeal('temperatura', data['temperatura']), 'Temp. fora', Colors.deepOrange);
+                          addChip(_foraDoIdeal('turbidez', data['turbidez']), 'Turbidez fora', Colors.purple);
+                          addChip(_foraDoIdeal('saturacao_percentual', data['saturacao_percentual']), 'Sat. % fora', Colors.blueGrey);
+                          addChip(_foraDoIdeal('saturacao_oxigenio', data['saturacao_oxigenio']), 'Sat. O2 fora', Colors.blue);
+                          addChip(_foraDoIdeal('salinidade', data['salinidade']), 'Salinidade fora', Colors.teal);
+                          addChip(_foraDoIdeal('calcio', data['calcio']), 'Cálcio fora', Colors.green);
+                          addChip(_foraDoIdeal('nitrito', data['nitrito']), 'Nitrito fora', Colors.brown);
+                          addChip(_foraDoIdeal('amonia', data['amonia']), 'Amônia fora', Colors.indigo);
+                          // Removidos: alcalinidade, dureza, transparência
 
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -342,22 +585,11 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                                 children: [
                                   Text('Data: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}'),
                                   Text('Por: $por', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                  Row(
-                                    children: [
-                                      if (phAlerta)
-                                        const Padding(
-                                          padding: EdgeInsets.only(right: 8),
-                                          child: Chip(label: Text('pH fora'), backgroundColor: Colors.redAccent, labelStyle: TextStyle(color: Colors.white)),
-                                        ),
-                                      if (oxAlerta)
-                                        const Padding(
-                                          padding: EdgeInsets.only(right: 8),
-                                          child: Chip(label: Text('O2 fora'), backgroundColor: Colors.orangeAccent, labelStyle: TextStyle(color: Colors.white)),
-                                        ),
-                                      if (tempAlerta)
-                                        const Chip(label: Text('Temp. fora'), backgroundColor: Colors.deepOrange, labelStyle: TextStyle(color: Colors.white)),
-                                    ],
-                                  )
+                                  if (chips.isNotEmpty)
+                                    SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Row(children: chips),
+                                    ),
                                 ],
                               ),
                               trailing: PopupMenuButton<String>(
