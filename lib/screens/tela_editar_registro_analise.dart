@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import '../widgets/degrade_fundo.dart';
 
 class TelaEditarRegistroAnalise extends StatefulWidget {
@@ -57,6 +58,10 @@ class _TelaEditarRegistroAnaliseState extends State<TelaEditarRegistroAnalise> {
         _nomeUsuario = doc.data()?['nome'] ?? user.email ?? user.uid;
       });
     }
+  }
+
+  String _formatDateTime(DateTime dt) {
+    return DateFormat('dd/MM/yyyy HH:mm').format(dt);
   }
 
   @override
@@ -147,6 +152,9 @@ class _TelaEditarRegistroAnaliseState extends State<TelaEditarRegistroAnalise> {
   Future<void> _onSalvar() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
+    
+    print('DEBUG EDIT: Usuário editando: $_nomeUsuario');
+    
     final updateData = {
       'ph': double.tryParse(_phCtrl.text) ?? 0.0,
       'oxigenio': double.tryParse(_oxCtrl.text) ?? 0.0,
@@ -163,6 +171,9 @@ class _TelaEditarRegistroAnaliseState extends State<TelaEditarRegistroAnalise> {
       'editadoPor': _nomeUsuario ?? '',
       'editadoEm': Timestamp.now(),
     };
+    
+    print('DEBUG EDIT: Dados de auditoria - editadoPor: ${updateData['editadoPor']}, editadoEm: ${updateData['editadoEm']}');
+    
     await FirebaseFirestore.instance.collection('registros_diarios').doc(widget.docId).update(updateData);
     setState(() => _saving = false);
     if (!mounted) return;
@@ -239,6 +250,35 @@ class _TelaEditarRegistroAnaliseState extends State<TelaEditarRegistroAnalise> {
                 _campoNumComFaixa(_calcCtrl, 'Cálcio (mg/L)', Icons.science_outlined, 100.0, 300.0, 'calc', obrigatorio: false),
                 _campoNumComFaixa(_nitritoCtrl, 'Nitrito (mg/L)', Icons.warning_amber, 0.0, 1.0, 'nitrito', obrigatorio: false),
                 _campoNumComFaixa(_amoniaCtrl, 'Amônia (mg/L)', Icons.dangerous, 0.0, 0.5, 'amonia', obrigatorio: false),
+                TextFormField(
+                  readOnly: true,
+                  decoration: InputDecoration(
+                    labelText: 'Data/Hora do Registro',
+                    prefixIcon: const Icon(Icons.calendar_today),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.access_time),
+                      onPressed: () async {
+                        final dt = await showDatePicker(
+                          context: context,
+                          initialDate: _registroDt,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (dt != null) {
+                          final tm = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.fromDateTime(_registroDt),
+                          );
+                          if (tm != null) {
+                            setState(() => _registroDt = DateTime(dt.year, dt.month, dt.day, tm.hour, tm.minute));
+                          }
+                        }
+                      },
+                    ),
+                    hintText: _formatDateTime(_registroDt),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _obsCtrl,
                   maxLines: 2,

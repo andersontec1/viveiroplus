@@ -7,7 +7,6 @@ import 'package:viveiro_plus/screens/tela_analise_agua.dart' as analise;
 import 'package:viveiro_plus/screens/tela_arracoador.dart' as arracoador;
 import 'package:viveiro_plus/screens/tela_listagem_registros.dart';
 import 'package:viveiro_plus/screens/tela_listagem_racao.dart';
-import 'package:viveiro_plus/screens/tela_cadastro_viveiro.dart';
 import 'package:viveiro_plus/screens/tela_listagem_viveiros.dart';
 import 'package:viveiro_plus/screens/tela_gerenciar_usuarios.dart';
 import 'package:viveiro_plus/screens/tela_listagem_bercarios.dart';
@@ -363,6 +362,27 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
         icone: Icons.set_meal,
       ));
     }
+
+    if (temPermissao('cadastro_viveiro') || temPermissao('editar_viveiro') || temPermissao('listar_viveiros') || temPermissao('listar_bercarios')) {
+      categorias.add(_categoriaExpansivel(
+        'Viveiros e Berçários',
+        _montarGridCategoria([
+          if (temPermissao('listar_viveiros'))
+            {
+              'icone': Icons.water,
+              'texto': 'Viveiros',
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => TelaListagemViveiros(funcaoUsuario: _funcaoUsuario))),
+            },
+          if (temPermissao('listar_bercarios'))
+            {
+              'icone': Icons.spa,
+              'texto': 'Berçários',
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaListagemBercarios())),
+            },
+        ]),
+        icone: Icons.eco,
+      ));
+    }
     if (temPermissao('relatorios')) {
       categorias.add(_categoriaExpansivel(
         'Insumos e Suprimentos',
@@ -397,33 +417,6 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
           },
         ]),
         icone: Icons.history_toggle_off,
-      ));
-    }
-    if (temPermissao('cadastro_viveiro') || temPermissao('editar_viveiro') || temPermissao('listar_viveiros') || temPermissao('listar_bercarios')) {
-      categorias.add(_categoriaExpansivel(
-        'Viveiros e Berçários',
-        _montarGridCategoria([
-          if (temPermissao('cadastro_viveiro'))
-            {
-              'icone': Icons.add_box,
-              'texto': 'Cadastrar Viveiro',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaCadastroViveiro())),
-            },
-          if (temPermissao('listar_viveiros'))
-            {
-              'icone': Icons.view_list,
-              'texto': 'Listar Viveiros',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => TelaListagemViveiros(funcaoUsuario: _funcaoUsuario))),
-            },
-          if (temPermissao('listar_bercarios'))
-            {
-              'icone': null,
-              'texto': 'Listar Berçários',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaListagemBercarios())),
-              'customIcon': 'assets/images/camaraoico.png',
-            },
-        ]),
-        icone: Icons.eco,
       ));
     }
     if (temPermissao('usuarios') || temPermissao('gerenciar_usuarios')) {

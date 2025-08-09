@@ -504,7 +504,7 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
                   TextFormField(
                     readOnly: true,
                     decoration: InputDecoration(
-                      labelText: 'Data/Hora do Registro',
+                      labelText: 'Data/Hora do Registro *',
                       prefixIcon: const Icon(Icons.calendar_today),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.access_time),
@@ -529,6 +529,12 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
                       ),
                       hintText: _formatDateTime(_registroDt),
                     ),
+                    validator: (v) {
+                      if (_registroDt == null) {
+                        return 'Selecione a data e hora do registro';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 24),
                   Row(

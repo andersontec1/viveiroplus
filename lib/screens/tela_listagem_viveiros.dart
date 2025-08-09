@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../widgets/app_scaffold.dart';
 import 'tela_editar_viveiro.dart';
+import 'tela_detalhes_viveiro.dart';
+import 'tela_cadastro_viveiro.dart';
 import '../widgets/degrade_fundo.dart';
 
 class TelaListagemViveiros extends StatefulWidget {
@@ -25,7 +27,7 @@ class _TelaListagemViveirosState extends State<TelaListagemViveiros> {
     query = query.orderBy('codigo');
 
     return AppScaffold(
-      title: 'Listar Viveiros',
+      title: 'Viveiros',
       backgroundColor: Colors.transparent,
       body: DegradeFundo(
         child: SafeArea(
@@ -38,7 +40,7 @@ class _TelaListagemViveirosState extends State<TelaListagemViveiros> {
                     Icon(Icons.water, size: 48, color: Colors.teal),
                     SizedBox(height: 6),
                     Text(
-                      'Listagem de Viveiros',
+                      'Viveiros',
                       style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.teal),
                     ),
                     SizedBox(height: 4),
@@ -50,6 +52,37 @@ class _TelaListagemViveirosState extends State<TelaListagemViveiros> {
                   ],
                 ),
               ),
+              // Botão de cadastrar viveiro
+              if (widget.funcaoUsuario == 'admin' || widget.funcaoUsuario == 'gerente')
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final resultado = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const TelaCadastroViveiro()),
+                        );
+                        if (resultado == true && mounted) {
+                          setState(() {});
+                        }
+                      },
+                      icon: const Icon(Icons.add, color: Colors.white),
+                      label: const Text(
+                        'Cadastrar Novo Viveiro',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: DropdownButtonFormField<String>(
@@ -95,97 +128,22 @@ class _TelaListagemViveirosState extends State<TelaListagemViveiros> {
                             ? DateFormat('dd/MM/yyyy HH:mm').format(ts)
                             : 'Data desconhecida';
 
-                        void mostrarDetalhesViveiro(BuildContext context, Map<String, dynamic> data) {
-                          final ts = (data['criadoEm'] as Timestamp?)?.toDate();
-                          final nome = data['nome'] ?? '—';
-                          final codigo = data['codigo'] ?? '—';
-                          final area = data['area'] ?? '—';
-                          final volume = data['volume'] ?? '—';
-                          final temB = data['temBercario'] as bool? ?? false;
-                          final criadoStr = ts != null ? DateFormat('dd/MM/yyyy HH:mm').format(ts) : 'Data desconhecida';
-
-                          Widget infoDetalhe(String label, String valor, {IconData? icon, Color? cor}) {
-                            return Container(
-                              margin: const EdgeInsets.symmetric(vertical: 3),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: cor ?? Colors.teal.shade50,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                children: [
-                                  if (icon != null) ...[
-                                    Icon(icon, color: Colors.teal, size: 18),
-                                    const SizedBox(width: 6),
-                                  ],
-                                  Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  Text(valor, style: TextStyle(color: Colors.teal.shade900, fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                            );
-                          }
-
-                          showDialog(
-                            context: context,
-                            builder: (_) => Dialog(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                              child: Container(
-                                padding: const EdgeInsets.all(0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    Container(
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFB2DFDB),
-                                        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(vertical: 18),
-                                      child: const Column(
-                                        children: [
-                                          Icon(Icons.water, color: Colors.teal, size: 38),
-                                          SizedBox(height: 6),
-                                          Text('Detalhes do Viveiro', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                                        ],
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          infoDetalhe('Nome', nome, icon: Icons.label),
-                                          infoDetalhe('Código', codigo, icon: Icons.confirmation_number),
-                                          infoDetalhe('Área', '$area m²', icon: Icons.square_foot),
-                                          infoDetalhe('Volume', '$volume m³', icon: Icons.water_drop),
-                                          infoDetalhe('Possui berçário', temB ? 'Sim' : 'Não', icon: Icons.spa),
-                                          infoDetalhe('Criado em', criadoStr, icon: Icons.calendar_today),
-                                        ],
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 10),
-                                      child: Center(
-                                        child: TextButton(
-                                          onPressed: () => Navigator.pop(context),
-                                          child: const Text('Fechar', style: TextStyle(fontWeight: FontWeight.bold)),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          );
-                        }
-
                         return Card(
                           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 3,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(16),
-                            onTap: () => mostrarDetalhesViveiro(context, data),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => TelaDetalhesViveiro(
+                                  codigo: codigo,
+                                  nome: nome,
+                                  dadosViveiro: data,
+                                ),
+                              ),
+                            ),
                             child: Padding(
                               padding: const EdgeInsets.all(8.0),
                               child: Row(
