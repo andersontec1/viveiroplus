@@ -20,6 +20,7 @@ import 'package:viveiro_plus/screens/tela_painel_web.dart';
 import 'package:viveiro_plus/screens/tela_Insumos.dart';
 import 'package:viveiro_plus/screens/tela_estoque_insumos.dart';
 import 'package:viveiro_plus/screens/tela_biomassa.dart';
+import 'package:viveiro_plus/screens/tela_despesca.dart';
 import '../widgets/degrade_fundo.dart' as degrade_widget;
 
 class MenuPrincipal extends StatefulWidget {
@@ -414,6 +415,11 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
             'icone': Icons.monitor_weight,
             'texto': 'Cálculo de Biomassa',
             'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaBiomassa())),
+          },
+          {
+            'icone': Icons.set_meal,
+            'texto': 'Controle de Despesca',
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaDespesca())),
           },
         ]),
         icone: Icons.history_toggle_off,

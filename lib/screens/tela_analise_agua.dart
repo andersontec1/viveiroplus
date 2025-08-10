@@ -140,25 +140,27 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
     if (!_formKey.currentState!.validate()) return;
     if (_codigoSelecionado == null || _tipoSelecionado == null) return;
 
-    final ph = double.tryParse(_phCtrl.text) ?? 0.0;
-    final ox = double.tryParse(_oxCtrl.text) ?? 0.0;
-    final temp = double.tryParse(_tempCtrl.text) ?? 0.0;
-    final sal = double.tryParse(_salinityCtrl.text) ?? 0.0;
-    final calc = double.tryParse(_calcCtrl.text) ?? 0.0;
-    final nitrito = double.tryParse(_nitritoCtrl.text.isEmpty ? '0' : _nitritoCtrl.text) ?? 0.0;
-    final amonia = double.tryParse(_amoniaCtrl.text.isEmpty ? '0' : _amoniaCtrl.text) ?? 0.0;
-    final turbidez = double.tryParse(_turbidezCtrl.text) ?? 0.0;
-    final saturacaoPorc = double.tryParse(_saturacaoPorcCtrl.text) ?? 0.0;
-    final saturacaoOx = double.tryParse(_saturacaoOxCtrl.text) ?? 0.0;
+    // Só processar campos que foram preenchidos
+    final ph = _phCtrl.text.isNotEmpty ? double.tryParse(_phCtrl.text) : null;
+    final ox = _oxCtrl.text.isNotEmpty ? double.tryParse(_oxCtrl.text) : null;
+    final temp = _tempCtrl.text.isNotEmpty ? double.tryParse(_tempCtrl.text) : null;
+    final sal = _salinityCtrl.text.isNotEmpty ? double.tryParse(_salinityCtrl.text) : null;
+    final calc = _calcCtrl.text.isNotEmpty ? double.tryParse(_calcCtrl.text) : null;
+    final nitrito = _nitritoCtrl.text.isNotEmpty ? double.tryParse(_nitritoCtrl.text) : null;
+    final amonia = _amoniaCtrl.text.isNotEmpty ? double.tryParse(_amoniaCtrl.text) : null;
+    final turbidez = _turbidezCtrl.text.isNotEmpty ? double.tryParse(_turbidezCtrl.text) : null;
+    final saturacaoPorc = _saturacaoPorcCtrl.text.isNotEmpty ? double.tryParse(_saturacaoPorcCtrl.text) : null;
+    final saturacaoOx = _saturacaoOxCtrl.text.isNotEmpty ? double.tryParse(_saturacaoOxCtrl.text) : null;
 
     final List<Map<String, dynamic>> fora = [];
-    if (_foraFaixa('ph', ph)) fora.add({'nome': 'pH', 'valor': ph, 'ideal': '7.5 – 8.5'});
-    if (_foraFaixa('ox', ox)) fora.add({'nome': 'Oxigênio', 'valor': ox, 'ideal': '5.0 – 8.0'});
-    if (_foraFaixa('temp', temp)) fora.add({'nome': 'Temperatura', 'valor': temp, 'ideal': '28.0 – 32.0'});
-    if (_foraFaixa('sal', sal)) fora.add({'nome': 'Salinidade', 'valor': sal, 'ideal': '15.0 – 25.0'});
-    if (_foraFaixa('calc', calc)) fora.add({'nome': 'Cálcio', 'valor': calc, 'ideal': '100 – 300'});
-    if (_foraFaixa('nitrito', nitrito)) fora.add({'nome': 'Nitrito', 'valor': nitrito, 'ideal': '≤ 1.0'});
-    if (_foraFaixa('amonia', amonia)) fora.add({'nome': 'Amônia', 'valor': amonia, 'ideal': '≤ 0.5'});
+    // Só validar campos que foram preenchidos
+    if (ph != null && _foraFaixa('ph', ph)) fora.add({'nome': 'pH', 'valor': ph, 'ideal': '7.5 – 8.5'});
+    if (ox != null && _foraFaixa('ox', ox)) fora.add({'nome': 'Oxigênio', 'valor': ox, 'ideal': '5.0 – 8.0'});
+    if (temp != null && _foraFaixa('temp', temp)) fora.add({'nome': 'Temperatura', 'valor': temp, 'ideal': '28.0 – 32.0'});
+    if (sal != null && _foraFaixa('sal', sal)) fora.add({'nome': 'Salinidade', 'valor': sal, 'ideal': '15.0 – 25.0'});
+    if (calc != null && _foraFaixa('calc', calc)) fora.add({'nome': 'Cálcio', 'valor': calc, 'ideal': '100 – 300'});
+    if (nitrito != null && _foraFaixa('nitrito', nitrito)) fora.add({'nome': 'Nitrito', 'valor': nitrito, 'ideal': '≤ 1.0'});
+    if (amonia != null && _foraFaixa('amonia', amonia)) fora.add({'nome': 'Amônia', 'valor': amonia, 'ideal': '≤ 0.5'});
 
     if (fora.isNotEmpty) {
       final continuar = await showDialog<bool>(
@@ -234,25 +236,30 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
       nomeUsuario = doc.data()?['nome'] ?? '—';
     }
 
-    await col.add({
+    // Criar o mapa de dados apenas com campos preenchidos
+    final Map<String, dynamic> dados = {
       'tipoDestino': _tipoSelecionado,
       'codigo': _codigoSelecionado,
       'nome': nome,
-      'ph': ph,
-      'oxigenio': ox,
-      'temperatura': temp,
-      'turbidez': turbidez,
-      'salinidade': sal,
-      'calcio': calc,
-      'nitrito': nitrito,
-      'amonia': amonia,
       'observacoes': _obsCtrl.text.trim(),
       'dataHora': Timestamp.fromDate(_registroDt),
       'criadoEm': Timestamp.now(),
       'registradoPor': nomeUsuario,
-      'saturacao_percentual': saturacaoPorc,
-      'saturacao_oxigenio': saturacaoOx,
-    });
+    };
+
+    // Adicionar apenas os campos que foram preenchidos
+    if (ph != null) dados['ph'] = ph;
+    if (ox != null) dados['oxigenio'] = ox;
+    if (temp != null) dados['temperatura'] = temp;
+    if (turbidez != null) dados['turbidez'] = turbidez;
+    if (sal != null) dados['salinidade'] = sal;
+    if (calc != null) dados['calcio'] = calc;
+    if (nitrito != null) dados['nitrito'] = nitrito;
+    if (amonia != null) dados['amonia'] = amonia;
+    if (saturacaoPorc != null) dados['saturacao_percentual'] = saturacaoPorc;
+    if (saturacaoOx != null) dados['saturacao_oxigenio'] = saturacaoOx;
+
+    await col.add(dados);
 
     if (!mounted) return;
     await showDialog(
@@ -503,6 +510,7 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
                   // Campo de data/hora do registro (editável para todos)
                   TextFormField(
                     readOnly: true,
+                    controller: TextEditingController(text: _formatDateTime(_registroDt)),
                     decoration: InputDecoration(
                       labelText: 'Data/Hora do Registro *',
                       prefixIcon: const Icon(Icons.calendar_today),
@@ -527,12 +535,9 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
                           }
                         },
                       ),
-                      hintText: _formatDateTime(_registroDt),
                     ),
                     validator: (v) {
-                      if (_registroDt == null) {
-                        return 'Selecione a data e hora do registro';
-                      }
+                      // Como _registroDt sempre tem um valor válido, não precisa validar
                       return null;
                     },
                   ),

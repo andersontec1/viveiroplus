@@ -17,6 +17,8 @@ class _TelaArracoadorState extends State<TelaArracoador> {
   final _quantidadeCtrl = TextEditingController();
   final _sobrasCtrl = TextEditingController();
   final _obsCtrl = TextEditingController();
+  // Adicionado controller para data/hora
+  final _dataHoraCtrl = TextEditingController();
 
   String? _tipoSelecionado;
   String? _codigoSelecionado;
@@ -45,6 +47,8 @@ class _TelaArracoadorState extends State<TelaArracoador> {
     _quantidadeCtrl.addListener(_verificarCampos);
     _sobrasCtrl.addListener(_verificarCampos);
     _obsCtrl.addListener(_verificarCampos);
+    // Inicializa texto da data/hora
+    _dataHoraCtrl.text = _formatDateTime(_horaAtual);
   }
 
   void _verificarCampos() {
@@ -232,6 +236,15 @@ class _TelaArracoadorState extends State<TelaArracoador> {
   }
 
   @override
+  void dispose() {
+    _quantidadeCtrl.dispose();
+    _sobrasCtrl.dispose();
+    _obsCtrl.dispose();
+    _dataHoraCtrl.dispose(); // dispose do novo controller
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: _confirmarSaida,
@@ -396,9 +409,10 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                   const SizedBox(height: 24),
                   if (_funcaoUsuario == 'admin' || _funcaoUsuario == 'gerente') ...[
                     TextFormField(
+                      controller: _dataHoraCtrl,
                       readOnly: true,
                       decoration: InputDecoration(
-                        labelText: 'Data/Hora do Registro',
+                        labelText: 'Data/Hora do Registro *',
                         prefixIcon: const Icon(Icons.calendar_today),
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.access_time),
@@ -415,13 +429,35 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                                 initialTime: TimeOfDay.fromDateTime(_horaAtual),
                               );
                               if (tm != null) {
-                                setState(() => _horaAtual = DateTime(dt.year, dt.month, dt.day, tm.hour, tm.minute));
+                                setState(() {
+                                  _horaAtual = DateTime(dt.year, dt.month, dt.day, tm.hour, tm.minute);
+                                  _dataHoraCtrl.text = _formatDateTime(_horaAtual);
+                                });
                               }
                             }
                           },
                         ),
-                        hintText: _formatDateTime(_horaAtual),
                       ),
+                      onTap: () async {
+                        final dt = await showDatePicker(
+                          context: context,
+                          initialDate: _horaAtual,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (dt != null) {
+                          final tm = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.fromDateTime(_horaAtual),
+                          );
+                          if (tm != null) {
+                            setState(() {
+                              _horaAtual = DateTime(dt.year, dt.month, dt.day, tm.hour, tm.minute);
+                              _dataHoraCtrl.text = _formatDateTime(_horaAtual);
+                            });
+                          }
+                        }
+                      },
                     ),
                     const SizedBox(height: 24),
                   ],
