@@ -420,8 +420,8 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
             validator: (v) {
               final valor = v?.trim().toLowerCase() ?? '';
               if (valor.isEmpty) return 'Informe o nome de usuário';
-              if (!RegExp(r'^[a-z0-9_]+\$').hasMatch(valor)) {
-                return 'Use apenas letras minúsculas, números e "_"';
+              if (!RegExp(r'^[a-z0-9._-]+$').hasMatch(valor)) {
+                return 'Use apenas letras minúsculas, números, "." e "-"';
               }
               return null;
             },

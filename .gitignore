@@ -50,3 +50,6 @@ android/local.properties
 
 # Firebase config (opcional, se quiser manter privado)
 firebase_options.dart
+
+# Local Netlify folder
+.netlify

@@ -160,6 +160,12 @@ class _TelaDetalhesViveiroState extends State<TelaDetalhesViveiro> with SingleTi
             addChip(_foraDoIdeal('oxigenio', data['oxigenio']), 'O₂ fora', Colors.orange);
             addChip(_foraDoIdeal('temperatura', data['temperatura']), 'Temp fora', Colors.blue);
             addChip(_foraDoIdeal('salinidade', data['salinidade']), 'Sal fora', Colors.purple);
+            addChip(_foraDoIdeal('turbidez', data['turbidez']), 'Turbidez fora', Colors.brown);
+            addChip(_foraDoIdeal('saturacao_percentual', data['saturacao_percentual']), 'Sat% fora', Colors.indigo);
+            addChip(_foraDoIdeal('saturacao_oxigenio', data['saturacao_oxigenio']), 'SatO₂ fora', Colors.cyan);
+            addChip(_foraDoIdeal('calcio', data['calcio']), 'Ca fora', Colors.green);
+            addChip(_foraDoIdeal('nitrito', data['nitrito']), 'NO₂ fora', Colors.red.shade800);
+            addChip(_foraDoIdeal('amonia', data['amonia']), 'NH₃ fora', Colors.orange.shade800);
 
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
@@ -199,13 +205,25 @@ class _TelaDetalhesViveiroState extends State<TelaDetalhesViveiro> with SingleTi
       final double val = double.parse(valor.toString());
       switch (parametro) {
         case 'ph':
-          return val < 7.5 || val > 8.5;
+          return val < 7.0 || val > 9.0;
         case 'oxigenio':
-          return val < 5.0;
+          return val < 4.0 || val > 14.0;
         case 'temperatura':
-          return val < 26.0 || val > 30.0;
+          return val < 28.0 || val > 32.0;
         case 'salinidade':
-          return val < 15.0 || val > 25.0;
+          return val < 30.0 || val > 45.0;
+        case 'turbidez':
+          return val < 40.0 || val > 60.0;
+        case 'saturacao_percentual':
+          return val < 80.0 || val > 120.0;
+        case 'saturacao_oxigenio':
+          return val < 80.0 || val > 120.0;
+        case 'calcio':
+          return val < 100.0 || val > 300.0;
+        case 'nitrito':
+          return val < 0.0 || val > 0.5;
+        case 'amonia':
+          return val < 0.0 || val > 1.5;
         default:
           return false;
       }
@@ -385,16 +403,16 @@ class _TelaDetalhesViveiroState extends State<TelaDetalhesViveiro> with SingleTi
                           ],
                         ),
                       ),
-                      paramDetalhe('pH', 'ph', '', ideal: '7.5 - 8.5'),
-                      paramDetalhe('Oxigênio', 'oxigenio', 'mg/L', ideal: '≥ 5.0'),
-                      paramDetalhe('Temperatura', 'temperatura', '°C', ideal: '26 - 30'),
-                      paramDetalhe('Salinidade', 'salinidade', 'ppt', ideal: '15 - 25'),
-                      if (data['nitrito'] != null) paramDetalhe('Nitrito', 'nitrito', 'mg/L'),
-                      if (data['amonia'] != null) paramDetalhe('Amônia', 'amonia', 'mg/L'),
-                      if (data['alcalinidade'] != null) paramDetalhe('Alcalinidade', 'alcalinidade', 'mg/L'),
-                      if (data['dureza'] != null) paramDetalhe('Dureza', 'dureza', 'mg/L'),
-                      if (data['transparencia'] != null) paramDetalhe('Transparência', 'transparencia', 'cm'),
-                      if (data['calcio'] != null) paramDetalhe('Cálcio', 'calcio', 'mg/L'),
+                      paramDetalhe('pH', 'ph', '', ideal: '7.0 - 9.0'),
+                      paramDetalhe('Oxigênio', 'oxigenio', 'mg/L', ideal: '4.0 - 14.0'),
+                      paramDetalhe('Temperatura', 'temperatura', '°C', ideal: '28 - 32'),
+                      paramDetalhe('Salinidade', 'salinidade', 'ppt', ideal: '30 - 45'),
+                      if (data['turbidez'] != null) paramDetalhe('Turbidez', 'turbidez', 'NTU', ideal: '40 - 60'),
+                      if (data['saturacao_percentual'] != null) paramDetalhe('Saturação %', 'saturacao_percentual', '%', ideal: '80 - 120'),
+                      if (data['saturacao_oxigenio'] != null) paramDetalhe('Saturação O₂', 'saturacao_oxigenio', '%', ideal: '80 - 120'),
+                      if (data['calcio'] != null) paramDetalhe('Cálcio', 'calcio', 'mg/L', ideal: '100 - 300'),
+                      if (data['nitrito'] != null) paramDetalhe('Nitrito', 'nitrito', 'mg/L', ideal: '0.0 - 0.5'),
+                      if (data['amonia'] != null) paramDetalhe('Amônia', 'amonia', 'mg/L', ideal: '0.0 - 1.5'),
                       
                       if (data['observacoes'] != null && data['observacoes'].toString().isNotEmpty) ...[
                         const SizedBox(height: 10),

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import '../widgets/app_scaffold.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/degrade_fundo.dart';
+import 'tela_analise_agua.dart' as analise;
 import '../helpers/confirmation_helper.dart';
 import 'tela_editar_registro_analise.dart';
 
@@ -153,6 +153,21 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
 
   void _mostrarDetalhes(Map<String, dynamic> data) {
     final dt = (data['dataHora'] as Timestamp).toDate();
+    
+    // Lista de parâmetros com suas configurações
+    final parametrosConfig = [
+      {'label': 'pH da Água', 'campo': 'ph', 'unidade': '', 'ideal': '7.0 – 9.0'},
+      {'label': 'Oxigênio Dissolvido', 'campo': 'oxigenio', 'unidade': 'mg/L', 'ideal': '4.0 – 14.0'},
+      {'label': 'Temperatura (°C)', 'campo': 'temperatura', 'unidade': '°C', 'ideal': '28.0 – 32.0'},
+      {'label': 'Turbidez (NTU)', 'campo': 'turbidez', 'unidade': 'NTU', 'ideal': '40.0 – 60.0'},
+      {'label': 'Porcentagem de Saturação (%)', 'campo': 'saturacao_percentual', 'unidade': '%', 'ideal': '80 – 120'},
+      {'label': 'Saturação de O2 Dissolvido (%)', 'campo': 'saturacao_oxigenio', 'unidade': '%', 'ideal': '80 – 120'},
+      {'label': 'Salinidade (ppt)', 'campo': 'salinidade', 'unidade': 'ppt', 'ideal': '30.0 – 45.0'},
+      {'label': 'Cálcio (mg/L)', 'campo': 'calcio', 'unidade': 'mg/L', 'ideal': '100 – 300'},
+      {'label': 'Nitrito (mg/L)', 'campo': 'nitrito', 'unidade': 'mg/L', 'ideal': '0.0 – 0.5'},
+      {'label': 'Amônia (mg/L)', 'campo': 'amonia', 'unidade': 'mg/L', 'ideal': '0.0 – 1.5'},
+    ];
+    
     Widget paramDetalhe(String label, String campo, String unidade, {String? ideal}) {
       final valor = data[campo];
       final fora = _foraDoIdeal(campo, valor);
@@ -173,7 +188,7 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
             const SizedBox(width: 6),
             Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
             Text(
-              valor != null ? valor.toString() : '—',
+              valor.toString(),
               style: TextStyle(
                 color: fora ? Colors.red : Colors.teal.shade900,
                 fontWeight: fora ? FontWeight.bold : FontWeight.w600,
@@ -189,6 +204,13 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
         ),
       );
     }
+    
+    // Filtra apenas os parâmetros que foram preenchidos (não nulos e não vazios)
+    final parametrosPreenchidos = parametrosConfig.where((param) {
+      final valor = data[param['campo']];
+      return valor != null && valor.toString().isNotEmpty && valor.toString() != '0' && valor.toString() != '0.0';
+    }).toList();
+    
     final editadoPor = data['editadoPor'];
     final editadoEm = data['editadoEm'];
     showDialog(
@@ -225,17 +247,33 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                       Text('Destino: ${data['nome'] ?? '—'}', style: const TextStyle(fontWeight: FontWeight.w600)),
                       Text('Código: ${data['codigo'] ?? '—'}', style: const TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 10),
-                      paramDetalhe('pH da Água', 'ph', '', ideal: '7.5 – 8.5'),
-                      paramDetalhe('Oxigênio Dissolvido', 'oxigenio', 'mg/L', ideal: '5.0 – 8.0'),
-                      paramDetalhe('Temperatura (°C)', 'temperatura', '°C', ideal: '28.0 – 32.0'),
-                      paramDetalhe('Turbidez (NTU)', 'turbidez', 'NTU', ideal: '0 – 50'),
-                      paramDetalhe('Porcentagem de Saturação (%)', 'saturacao_percentual', '%', ideal: '80 – 120'),
-                      paramDetalhe('Saturação de O2 Dissolvido (%)', 'saturacao_oxigenio', '%', ideal: '80 – 120'),
-                      paramDetalhe('Salinidade (ppt)', 'salinidade', 'ppt', ideal: '15.0 – 25.0'),
-                      paramDetalhe('Cálcio (mg/L)', 'calcio', 'mg/L', ideal: '100 – 300'),
-                      paramDetalhe('Nitrito (mg/L)', 'nitrito', 'mg/L', ideal: '≤ 1.0'),
-                      paramDetalhe('Amônia (mg/L)', 'amonia', 'mg/L', ideal: '≤ 0.5'),
-                      // Removidos: alcalinidade, dureza, transparência
+                      
+                      // Mostrar apenas os parâmetros que foram preenchidos
+                      if (parametrosPreenchidos.isNotEmpty)
+                        ...parametrosPreenchidos.map((param) => paramDetalhe(
+                          param['label'] as String,
+                          param['campo'] as String,
+                          param['unidade'] as String,
+                          ideal: param['ideal'] as String?,
+                        ))
+                      else
+                        Container(
+                          margin: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.grey, size: 18),
+                              SizedBox(width: 8),
+                              Text('Nenhum parâmetro foi registrado nesta análise.', 
+                                   style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+                            ],
+                          ),
+                        ),
+                      
                       const SizedBox(height: 14),
                       const Divider(),
                       const SizedBox(height: 6),
@@ -320,31 +358,25 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
     if (val == null) return false;
     switch (campo) {
       case 'ph':
-        return val < 7.5 || val > 8.5;
+        return val < 7.0 || val > 9.0;
       case 'oxigenio':
-        return val < 5.0 || val > 8.0;
+        return val < 4.0 || val > 14.0;
       case 'temperatura':
         return val < 28.0 || val > 32.0;
       case 'turbidez':
-        return val < 0.0 || val > 50.0;
+        return val < 40.0 || val > 60.0;
       case 'saturacao_percentual':
         return val < 80.0 || val > 120.0;
       case 'saturacao_oxigenio':
         return val < 80.0 || val > 120.0;
       case 'salinidade':
-        return val < 15.0 || val > 25.0;
+        return val < 30.0 || val > 45.0;
       case 'calcio':
         return val < 100.0 || val > 300.0;
       case 'nitrito':
-        return val > 1.0;
+        return val < 0.0 || val > 0.5;
       case 'amonia':
-        return val > 0.5;
-      case 'alcalinidade':
-        return val < 80.0 || val > 120.0;
-      case 'dureza':
-        return val < 50.0 || val > 150.0;
-      case 'transparencia':
-        return val < 30.0 || val > 40.0;
+        return val < 0.0 || val > 1.5;
       default:
         return false;
     }
@@ -365,9 +397,9 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
   @override
   Widget build(BuildContext context) {
     if (!_carregado) {
-      return const AppScaffold(
-        title: 'Registros de Análise',
-        body: DegradeFundo(
+      return Scaffold(
+        appBar: AppBar(title: const Text('Registros de Análise')),
+        body: const DegradeFundo(
           child: Center(child: CircularProgressIndicator()),
         ),
       );
@@ -390,253 +422,287 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
 
     registrosRef = registrosRef.orderBy('dataHora', descending: true);
 
-    return AppScaffold(
-      title: 'Registros de Análise',
+    return Scaffold(
+      appBar: AppBar(title: const Text('Análises de Água')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const analise.TelaAnaliseAgua()),
+          );
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Nova Análise'),
+        backgroundColor: Colors.teal,
+      ),
       body: DegradeFundo(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: _tipoSelecionado,
-                    decoration: const InputDecoration(
-                      labelText: 'Tipo',
-                      prefixIcon: Icon(Icons.category),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'viveiro', child: Text('Viveiro')),
-                      DropdownMenuItem(value: 'bercario', child: Text('Berçário')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _tipoSelecionado = value;
-                        _codigoSelecionado = null;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: _codigoSelecionado,
-                    decoration: const InputDecoration(
-                      labelText: 'Filtrar por Código',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: (() {
-                      List<DropdownMenuItem<String>> items = [];
-                      
-                      if (_tipoSelecionado == 'viveiro') {
-                        // Mostrar apenas viveiros
-                        final viveirosSorted = _viveiros.entries.toList()
-                          ..sort((a, b) => a.key.compareTo(b.key));
-                        
-                        items = viveirosSorted
-                            .map((e) => DropdownMenuItem<String>(
-                                  value: e.key,
-                                  child: Text('${e.value} (${e.key})'),
-                                ))
-                            .toList();
-                      } else if (_tipoSelecionado == 'bercario') {
-                        // Mostrar apenas berçários
-                        final bercariosSorted = _bercarios.entries.toList()
-                          ..sort((a, b) => a.key.compareTo(b.key));
-                        
-                        items = bercariosSorted
-                            .map((e) => DropdownMenuItem<String>(
-                                  value: e.key,
-                                  child: Text('${e.value} (${e.key})'),
-                                ))
-                            .toList();
-                      } else {
-                        // Se nenhum tipo selecionado, mostrar todos mas separados
-                        final viveiroItems = _viveiros.entries
-                            .map((e) => DropdownMenuItem<String>(
-                                  value: e.key,
-                                  child: Text('Viveiro ${e.value} (${e.key})'),
-                                ))
-                            .toList();
-                        
-                        final bercarioItems = _bercarios.entries
-                            .map((e) => DropdownMenuItem<String>(
-                                  value: e.key,
-                                  child: Text('Berçário ${e.value} (${e.key})'),
-                                ))
-                            .toList();
-                        
-                        items = [...viveiroItems, ...bercarioItems];
-                        items.sort((a, b) => a.value!.compareTo(b.value!));
-                      }
-                      
-                      return items;
-                    })(),
-                    onChanged: (value) => setState(() => _codigoSelecionado = value),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
+        child: StreamBuilder<QuerySnapshot>(
+          stream: registrosRef.snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return const Center(child: Text('Nenhum registro encontrado.'));
+            }
+
+            // Agrupa por data usando o rotulo bonito
+            final registrosPorData = <String, List<QueryDocumentSnapshot>>{};
+            for (var doc in docs) {
+              final data = doc.data() as Map<String, dynamic>;
+              final dt = (data['dataHora'] as Timestamp).toDate();
+              final chave = _rotuloData(dt);
+              registrosPorData.putIfAbsent(chave, () => []).add(doc);
+            }
+
+            return ListView(
+              children: [
+                // Cabeçalho e filtros que vão subir junto com a lista
+                const Padding(
+                  padding: EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.date_range),
-                          label: Text(_dataInicio == null
-                              ? 'Data início'
-                              : DateFormat('dd/MM/yyyy').format(_dataInicio!)),
-                          onPressed: () => _selecionarData(inicio: true),
-                        ),
+                      Icon(Icons.analytics, size: 48, color: Colors.teal),
+                      SizedBox(height: 8),
+                      Text(
+                        'Registros de Análise de Água',
+                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.teal),
+                        textAlign: TextAlign.center,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.event),
-                          label: Text(_dataFim == null
-                              ? 'Data fim'
-                              : DateFormat('dd/MM/yyyy').format(_dataFim!)),
-                          onPressed: () => _selecionarData(inicio: false),
-                        ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Visualize e gerencie todos os registros de análise de água.',
+                        style: TextStyle(fontSize: 15, color: Colors.teal, fontWeight: FontWeight.w400),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    icon: const Icon(Icons.filter_alt_off),
-                    label: const Text('Limpar Filtros'),
-                    onPressed: () {
-                      setState(() {
-                        _tipoSelecionado = null;
-                        _codigoSelecionado = null;
-                        _dataInicio = null;
-                        _dataFim = null;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: registrosRef.snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final docs = snapshot.data?.docs ?? [];
-                  if (docs.isEmpty) {
-                    return const Center(child: Text('Nenhum registro encontrado.'));
-                  }
-
-                  // Agrupa por data usando o rotulo bonito
-                  final registrosPorData = <String, List<QueryDocumentSnapshot>>{};
-                  for (var doc in docs) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final dt = (data['dataHora'] as Timestamp).toDate();
-                    final chave = _rotuloData(dt);
-                    registrosPorData.putIfAbsent(chave, () => []).add(doc);
-                  }
-
-                  return ListView(
-                    children: registrosPorData.entries.expand((entry) {
-                      return [
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(entry.key,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+                
+                // Filtros
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: _tipoSelecionado,
+                        decoration: const InputDecoration(
+                          labelText: 'Tipo',
+                          prefixIcon: Icon(Icons.category),
+                          border: OutlineInputBorder(),
                         ),
-                        ...entry.value.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final dt = (data['dataHora'] as Timestamp).toDate();
-                          final destino = data['nome'] ?? data['codigo'] ?? '—';
-                          final por = data['registradoPor'] ?? '—';
-
-                          // Checagem de todos os parâmetros relevantes para chips de alerta
-                          final chips = <Widget>[];
-                          void addChip(bool cond, String label, Color color) {
-                            if (cond) {
-                              chips.add(Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Chip(label: Text(label), backgroundColor: color, labelStyle: const TextStyle(color: Colors.white)),
-                              ));
-                            }
+                        items: const [
+                          DropdownMenuItem(value: 'viveiro', child: Text('Viveiro')),
+                          DropdownMenuItem(value: 'bercario', child: Text('Berçário')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _tipoSelecionado = value;
+                            _codigoSelecionado = null;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: _codigoSelecionado,
+                        decoration: const InputDecoration(
+                          labelText: 'Filtrar por Código',
+                          prefixIcon: Icon(Icons.search),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: (() {
+                          List<DropdownMenuItem<String>> items = [];
+                          
+                          if (_tipoSelecionado == 'viveiro') {
+                            // Mostrar apenas viveiros
+                            final viveirosSorted = _viveiros.entries.toList()
+                              ..sort((a, b) => a.key.compareTo(b.key));
+                            
+                            items = viveirosSorted
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: e.key,
+                                      child: Text('${e.value} (${e.key})'),
+                                    ))
+                                .toList();
+                          } else if (_tipoSelecionado == 'bercario') {
+                            // Mostrar apenas berçários
+                            final bercariosSorted = _bercarios.entries.toList()
+                              ..sort((a, b) => a.key.compareTo(b.key));
+                            
+                            items = bercariosSorted
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: e.key,
+                                      child: Text('${e.value} (${e.key})'),
+                                    ))
+                                .toList();
+                          } else {
+                            // Se nenhum tipo selecionado, mostrar todos mas separados
+                            final viveiroItems = _viveiros.entries
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: e.key,
+                                      child: Text('Viveiro ${e.value} (${e.key})'),
+                                    ))
+                                .toList();
+                            
+                            final bercarioItems = _bercarios.entries
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: e.key,
+                                      child: Text('Berçário ${e.value} (${e.key})'),
+                                    ))
+                                .toList();
+                            
+                            items = [...viveiroItems, ...bercarioItems];
+                            items.sort((a, b) => a.value!.compareTo(b.value!));
                           }
-                          addChip(_foraDoIdeal('ph', data['ph']), 'pH fora', Colors.redAccent);
-                          addChip(_foraDoIdeal('oxigenio', data['oxigenio']), 'O2 fora', Colors.orangeAccent);
-                          addChip(_foraDoIdeal('temperatura', data['temperatura']), 'Temp. fora', Colors.deepOrange);
-                          addChip(_foraDoIdeal('turbidez', data['turbidez']), 'Turbidez fora', Colors.purple);
-                          addChip(_foraDoIdeal('saturacao_percentual', data['saturacao_percentual']), 'Sat. % fora', Colors.blueGrey);
-                          addChip(_foraDoIdeal('saturacao_oxigenio', data['saturacao_oxigenio']), 'Sat. O2 fora', Colors.blue);
-                          addChip(_foraDoIdeal('salinidade', data['salinidade']), 'Salinidade fora', Colors.teal);
-                          addChip(_foraDoIdeal('calcio', data['calcio']), 'Cálcio fora', Colors.green);
-                          addChip(_foraDoIdeal('nitrito', data['nitrito']), 'Nitrito fora', Colors.brown);
-                          addChip(_foraDoIdeal('amonia', data['amonia']), 'Amônia fora', Colors.indigo);
-                          // Removidos: alcalinidade, dureza, transparência
-
-                          return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 2,
-                            child: ListTile(
-                              onTap: () => _mostrarDetalhes(data),
-                              leading: const Icon(Icons.analytics, color: Colors.teal),
-                              title: Text(destino, style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Data: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}'),
-                                  Text('Por: $por', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                  if (chips.isNotEmpty)
-                                    SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: Row(children: chips),
-                                    ),
-                                ],
-                              ),
-                              trailing: PopupMenuButton<String>(
-                                onSelected: (value) {
-                                  if (value == 'detalhes') {
-                                    _mostrarDetalhes(data);
-                                  } else if (value == 'excluir') {
-                                    _confirmarExclusao(doc.id);
-                                  } else if (value == 'editar') {
-                                    _editarRegistro(doc.id, data);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'detalhes',
-                                    child: ListTile(
-                                      leading: Icon(Icons.info),
-                                      title: Text('Detalhes'),
-                                    ),
-                                  ),
-                                  if (_funcaoUsuario == 'admin' || _funcaoUsuario == 'gerente')
-                                    const PopupMenuItem(
-                                      value: 'editar',
-                                      child: ListTile(
-                                        leading: Icon(Icons.edit),
-                                        title: Text('Editar'),
-                                      ),
-                                    ),
-                                  const PopupMenuItem(
-                                    value: 'excluir',
-                                    child: ListTile(
-                                      leading: Icon(Icons.delete),
-                                      title: Text('Excluir'),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          
+                          return items;
+                        })(),
+                        onChanged: (value) => setState(() => _codigoSelecionado = value),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.date_range),
+                              label: Text(_dataInicio == null
+                                  ? 'Data início'
+                                  : DateFormat('dd/MM/yyyy').format(_dataInicio!)),
+                              onPressed: () => _selecionarData(inicio: true),
                             ),
-                          );
-                        }),
-                      ];
-                    }).toList(),
-                  );
-                },
-              ),
-            ),
-          ],
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.event),
+                              label: Text(_dataFim == null
+                                  ? 'Data fim'
+                                  : DateFormat('dd/MM/yyyy').format(_dataFim!)),
+                              onPressed: () => _selecionarData(inicio: false),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        icon: const Icon(Icons.filter_alt_off),
+                        label: const Text('Limpar Filtros'),
+                        onPressed: () {
+                          setState(() {
+                            _tipoSelecionado = null;
+                            _codigoSelecionado = null;
+                            _dataInicio = null;
+                            _dataFim = null;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Lista de registros
+                ...registrosPorData.entries.expand((entry) {
+                  return [
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(entry.key,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                    ...entry.value.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final dt = (data['dataHora'] as Timestamp).toDate();
+                      final destino = data['nome'] ?? data['codigo'] ?? '—';
+                      final por = data['registradoPor'] ?? '—';
+
+                      // Checagem de todos os parâmetros relevantes para chips de alerta
+                      final chips = <Widget>[];
+                      void addChip(bool cond, String label, Color color) {
+                        if (cond) {
+                          chips.add(Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Chip(label: Text(label), backgroundColor: color, labelStyle: const TextStyle(color: Colors.white)),
+                          ));
+                        }
+                      }
+                      addChip(_foraDoIdeal('ph', data['ph']), 'pH fora', Colors.redAccent);
+                      addChip(_foraDoIdeal('oxigenio', data['oxigenio']), 'O2 fora', Colors.orangeAccent);
+                      addChip(_foraDoIdeal('temperatura', data['temperatura']), 'Temp. fora', Colors.deepOrange);
+                      addChip(_foraDoIdeal('turbidez', data['turbidez']), 'Turbidez fora', Colors.purple);
+                      addChip(_foraDoIdeal('saturacao_percentual', data['saturacao_percentual']), 'Sat. % fora', Colors.blueGrey);
+                      addChip(_foraDoIdeal('saturacao_oxigenio', data['saturacao_oxigenio']), 'Sat. O2 fora', Colors.blue);
+                      addChip(_foraDoIdeal('salinidade', data['salinidade']), 'Salinidade fora', Colors.teal);
+                      addChip(_foraDoIdeal('calcio', data['calcio']), 'Cálcio fora', Colors.green);
+                      addChip(_foraDoIdeal('nitrito', data['nitrito']), 'Nitrito fora', Colors.brown);
+                      addChip(_foraDoIdeal('amonia', data['amonia']), 'Amônia fora', Colors.indigo);
+                      // Removidos: alcalinidade, dureza, transparência
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
+                        child: ListTile(
+                          onTap: () => _mostrarDetalhes(data),
+                          leading: const Icon(Icons.analytics, color: Colors.teal),
+                          title: Text(destino, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Data: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}'),
+                              Text('Por: $por', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              if (chips.isNotEmpty)
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(children: chips),
+                                ),
+                            ],
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'detalhes') {
+                                _mostrarDetalhes(data);
+                              } else if (value == 'excluir') {
+                                _confirmarExclusao(doc.id);
+                              } else if (value == 'editar') {
+                                _editarRegistro(doc.id, data);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'detalhes',
+                                child: ListTile(
+                                  leading: Icon(Icons.info),
+                                  title: Text('Detalhes'),
+                                ),
+                              ),
+                              if (_funcaoUsuario == 'admin' || _funcaoUsuario == 'gerente')
+                                const PopupMenuItem(
+                                  value: 'editar',
+                                  child: ListTile(
+                                    leading: Icon(Icons.edit),
+                                    title: Text('Editar'),
+                                  ),
+                                ),
+                              const PopupMenuItem(
+                                value: 'excluir',
+                                child: ListTile(
+                                  leading: Icon(Icons.delete),
+                                  title: Text('Excluir'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ];
+                }).toList(),
+              ],
+            );
+          },
         ),
       ),
     );

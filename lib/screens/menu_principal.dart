@@ -3,14 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import 'package:viveiro_plus/screens/tela_analise_agua.dart' as analise;
+
 import 'package:viveiro_plus/screens/tela_arracoador.dart' as arracoador;
 import 'package:viveiro_plus/screens/tela_listagem_registros.dart';
 import 'package:viveiro_plus/screens/tela_listagem_racao.dart';
 import 'package:viveiro_plus/screens/tela_listagem_viveiros.dart';
 import 'package:viveiro_plus/screens/tela_gerenciar_usuarios.dart';
 import 'package:viveiro_plus/screens/tela_listagem_bercarios.dart';
-import 'package:viveiro_plus/screens/cadastro_usuarios.dart';
+
 import 'package:viveiro_plus/screens/tela_relatorios.dart';
 import 'package:viveiro_plus/screens/tela_login.dart';
 import 'package:viveiro_plus/screens/pendencias.dart';
@@ -36,6 +36,26 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
   String? _funcaoUsuario;
   List<String> _permissoes = [];
   String _versaoApp = '';
+
+  // Descrições informativas para cada funcionalidade
+  final Map<String, String> _descricoesFuncionalidades = {
+    'Análise da água': 'Registre parâmetros de qualidade como pH, oxigênio e temperatura',
+    'Registros de análise': 'Consulte histórico completo das análises de água realizadas',
+    'Registro de ração': 'Controle a alimentação dos camarões e quantidade de ração',
+    'Histórico de ração': 'Acompanhe o consumo de ração por viveiro e período',
+    'Listar berçários': 'Gerencie informações dos berçários de pós-larvas',
+    'Listar viveiros': 'Visualize e administre todos os viveiros de engorda',
+    'Pendências': 'Acompanhe tarefas pendentes e alertas do sistema',
+    'Gerenciar usuários': 'Controle acesso e permissões dos funcionários',
+    'Relatórios': 'Gere relatórios detalhados de produção e análises',
+    'Ciclos do viveiro': 'Monitore ciclos produtivos e cronogramas de cultivo',
+    'Resumo detalhado': 'Visão geral dos indicadores e métricas do dia',
+    'Painel web': 'Acesse dashboard executivo com gráficos e estatísticas',
+    'Insumos': 'Cadastre e gerencie insumos utilizados na produção',
+    'Estoque de insumos': 'Controle entrada, saída e níveis de estoque',
+    'Biomassa': 'Registre pesagens e acompanhe crescimento dos camarões',
+    'Despesca': 'Gerencie processo de colheita e produção final',
+  };
 
   // Permissões padrão por função (compatibilidade)
   final Map<String, List<String>> permissoesPorFuncao = {
@@ -138,94 +158,135 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
     }
   }
 
-  Widget _buildCard({required String texto, required VoidCallback onTap, IconData? icone, String? customIcon}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.9),
-                Colors.white.withOpacity(0.7),
+  Widget _buildCard({required String texto, required VoidCallback onTap, IconData? icone, String? customIcon, String? descricao}) {
+    return Container(
+      height: 100,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: const Color(0xFF049F56).withOpacity(0.2),
+          highlightColor: const Color(0xFF049F56).withOpacity(0.1),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              // Gradiente glassmorphism horizontal com mais contraste
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(0.45),
+                  Colors.white.withOpacity(0.35),
+                  Colors.white.withOpacity(0.25),
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.5),
+                width: 2.0,
+              ),
+              boxShadow: [
+                // Sombra externa mais pronunciada
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 25,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 10),
+                ),
+                // Sombra interna para depth
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.8),
+                  blurRadius: 15,
+                  spreadRadius: -3,
+                  offset: const Offset(0, -3),
+                ),
+                // Glow effect mais visível
+                BoxShadow(
+                  color: const Color(0xFF049F56).withOpacity(0.15),
+                  blurRadius: 30,
+                  spreadRadius: -8,
+                  offset: const Offset(0, 12),
+                ),
               ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.4),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF049F56).withOpacity(0.15),
-                blurRadius: 15,
-                spreadRadius: 2,
-                offset: const Offset(0, 8),
-              ),
-              BoxShadow(
-                color: Colors.white.withOpacity(0.8),
-                blurRadius: 8,
-                spreadRadius: -5,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (customIcon != null)
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF049F56).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
+            child: Row(
+              children: [
+                // Informações do card à esquerda
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        texto,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF045D3A),
+                          height: 1.3,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        descricao ?? 'Toque para acessar',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade700,
+                          letterSpacing: 0.1,
+                          height: 1.2,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  child: Image.asset(
-                    customIcon, 
-                    width: 40, 
-                    height: 40,
-                    color: const Color(0xFF049F56),
-                  ),
-                )
-              else if (icone != null)
+                ),
+                
+                // Container do ícone à direita
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
+                    // Gradiente do ícone mais vibrante
                     gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF049F56).withOpacity(0.2),
-                        const Color(0xFF045D3A).withOpacity(0.1),
-                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF049F56),
+                        const Color(0xFF045D3A),
+                      ],
                     ),
                     borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF049F56).withOpacity(0.3),
+                        blurRadius: 15,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
-                  child: Icon(
-                    icone, 
-                    size: 32, 
-                    color: const Color(0xFF045D3A),
-                  ),
+                  child: customIcon != null
+                      ? Image.asset(
+                          customIcon, 
+                          width: 28, 
+                          height: 28,
+                          color: Colors.white,
+                        )
+                      : Icon(
+                          icone ?? Icons.help_outline, 
+                          size: 28, 
+                          color: Colors.white,
+                        ),
                 ),
-              const SizedBox(height: 12),
-              Text(
-                texto,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF045D3A),
-                  height: 1.3,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -301,43 +362,27 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
   }
 
   List<Widget> _montarGridCategoria(List<Map<String, dynamic>> botoes) {
-    return [
-      GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.1,
-        children: botoes.map((btn) => _buildCard(
-          icone: btn.containsKey('icone') ? btn['icone'] as IconData? : null,
-          customIcon: btn.containsKey('customIcon') ? btn['customIcon'] as String? : null,
-          texto: btn['texto'] as String,
-          onTap: btn['onTap'] as VoidCallback,
-        )).toList(),
-      ),
-    ];
+    return botoes.map((btn) => _buildCard(
+      icone: btn.containsKey('icone') ? btn['icone'] as IconData? : null,
+      customIcon: btn.containsKey('customIcon') ? btn['customIcon'] as String? : null,
+      texto: btn['texto'] as String,
+      onTap: btn['onTap'] as VoidCallback,
+      descricao: _descricoesFuncionalidades[btn['texto'] as String],
+    )).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> categorias = [];
-    if (temPermissao('analise_agua') || temPermissao('registros_analise')) {
+    if (temPermissao('registros_analise')) {
       categorias.add(_categoriaExpansivel(
         'Análises de Água',
         _montarGridCategoria([
-          if (temPermissao('analise_agua'))
-            {
-              'icone': Icons.water,
-              'texto': 'Análise da Água',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const analise.TelaAnaliseAgua())),
-            },
-          if (temPermissao('registros_analise'))
-            {
-              'icone': Icons.list_alt,
-              'texto': 'Registros de Análise',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaListagemRegistros())),
-            },
+          {
+            'icone': Icons.water_drop,
+            'texto': 'Análises de Água',
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaListagemRegistros())),
+          },
         ]),
         inicialmenteAberto: true,
         icone: Icons.water_drop,
@@ -425,22 +470,15 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
         icone: Icons.history_toggle_off,
       ));
     }
-    if (temPermissao('usuarios') || temPermissao('gerenciar_usuarios')) {
+    if (temPermissao('gerenciar_usuarios')) {
       categorias.add(_categoriaExpansivel(
         'Usuários',
         _montarGridCategoria([
-          if (temPermissao('usuarios'))
-            {
-              'icone': Icons.person_add,
-              'texto': 'Cadastrar Usuário',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CadastroUsuarioScreen())),
-            },
-          if (temPermissao('gerenciar_usuarios'))
-            {
-              'icone': Icons.supervised_user_circle,
-              'texto': 'Gerenciar Usuários',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaGerenciarUsuarios())),
-            },
+          {
+            'icone': Icons.people,
+            'texto': 'Gerenciar Usuários',
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaGerenciarUsuarios())),
+          },
         ]),
         icone: Icons.people,
       ));
