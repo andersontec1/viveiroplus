@@ -22,7 +22,7 @@ class DetalhesInsumoDialog extends StatelessWidget {
     final estoque = (data['estoque'] ?? data['quantidade_inicial'] ?? 0) as num;
     final fornecedor = data['fornecedor'] ?? '—';
     final lote = data['lote'] ?? '—';
-    final validade = data['validade'];
+    final validade = data['proxima_validade'] ?? data['validade'];
     DateTime? validadeDate;
     if (validade != null && validade is DateTime) {
       validadeDate = validade;
@@ -31,15 +31,17 @@ class DetalhesInsumoDialog extends StatelessWidget {
     }
     final vencido = validadeDate != null && validadeDate.isBefore(DateTime.now());
     final pertoVencer = validadeDate != null && !vencido && validadeDate.difference(DateTime.now()).inDays <= 7;
+    final qtdVencidos = (data['qtd_lotes_vencidos'] ?? 0) as int;
+    final qtdPerto = (data['qtd_lotes_perto_vencer'] ?? 0) as int;
     final baixo = estoque < 5;
     List<Widget> chips = [];
     if (baixo) {
       chips.add(const Chip(label: Text('Estoque baixo'), backgroundColor: Colors.redAccent, labelStyle: TextStyle(color: Colors.white), visualDensity: VisualDensity.compact));
     }
-    if (vencido) {
-      chips.add(const Chip(label: Text('Vencido'), backgroundColor: Colors.black54, labelStyle: TextStyle(color: Colors.white), visualDensity: VisualDensity.compact));
-    } else if (pertoVencer) {
-      chips.add(const Chip(label: Text('Vence em breve'), backgroundColor: Colors.orange, labelStyle: TextStyle(color: Colors.white), visualDensity: VisualDensity.compact));
+    if (qtdVencidos > 0) {
+      chips.add(Chip(label: Text('$qtdVencidos lote(s) vencido(s)'), backgroundColor: Colors.black54, labelStyle: const TextStyle(color: Colors.white), visualDensity: VisualDensity.compact));
+    } else if (qtdPerto > 0 || pertoVencer) {
+      chips.add(Chip(label: Text(qtdPerto > 0 ? '$qtdPerto lote(s) perto de vencer' : 'Vence em breve'), backgroundColor: Colors.orange, labelStyle: const TextStyle(color: Colors.white), visualDensity: VisualDensity.compact));
     }
 
     return Dialog(
@@ -93,12 +95,14 @@ class DetalhesInsumoDialog extends StatelessWidget {
               _infoRow('Fornecedor', fornecedor, Icons.local_shipping_rounded),
               _infoRow('Lote', lote, Icons.confirmation_number_rounded),
               _infoRow(
-                'Validade',
+                'Próx. Validade',
                 validadeDate == null
                     ? '—'
                     : '${validadeDate.day.toString().padLeft(2, '0')}/${validadeDate.month.toString().padLeft(2, '0')}/${validadeDate.year}',
                 Icons.event_rounded,
               ),
+              _infoRow('Lotes vencidos', qtdVencidos.toString(), Icons.warning_amber_rounded),
+              _infoRow('Lotes perto de vencer', qtdPerto.toString(), Icons.schedule_rounded),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,

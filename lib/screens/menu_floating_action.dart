@@ -66,7 +66,7 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
                 // Cards de resumo
                 _buildSummaryCard(),
                 const SizedBox(height: 20),
-                
+
                 // Atividades recentes
                 const Text(
                   'Atividades Recentes',
@@ -77,7 +77,7 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 _buildActivityTile(
                   'Análise de água - Viveiro 01',
                   '2 horas atrás',
@@ -96,12 +96,12 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
                   Icons.monitor_weight,
                   Colors.green,
                 ),
-                
+
                 const SizedBox(height: 100), // Espaço para o FAB
               ],
             ),
           ),
-          
+
           // Overlay escuro quando menu está aberto
           if (_isOpen)
             GestureDetector(
@@ -116,7 +116,7 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
                 ),
               ),
             ),
-          
+
           // Botões do menu circular
           ..._buildMenuButtons(),
         ],
@@ -145,10 +145,7 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            Color(0xFF049F56),
-            Color(0xFF045D3A),
-          ],
+          colors: [Color(0xFF049F56), Color(0xFF045D3A)],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -206,16 +203,18 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
         ),
         Text(
           label,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
       ],
     );
   }
 
-  Widget _buildActivityTile(String titulo, String tempo, IconData icon, Color color) {
+  Widget _buildActivityTile(
+    String titulo,
+    String tempo,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -254,10 +253,7 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
                 ),
                 Text(
                   tempo,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ],
             ),
@@ -310,9 +306,10 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
     return buttons.asMap().entries.map((entry) {
       final index = entry.key;
       final button = entry.value;
-      
+
       // Cálculo da posição circular
-      final angle = (index * 60.0) * (math.pi / 180.0); // 60 graus entre cada botão
+      final angle =
+          (index * 60.0) * (math.pi / 180.0); // 60 graus entre cada botão
       final radius = 120.0;
       final x = math.cos(angle - math.pi / 2) * radius;
       final y = math.sin(angle - math.pi / 2) * radius;
@@ -325,10 +322,7 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
             bottom: 16 - (y * _animation.value),
             child: Transform.scale(
               scale: _animation.value,
-              child: Opacity(
-                opacity: _animation.value,
-                child: button,
-              ),
+              child: Opacity(opacity: _animation.value, child: button),
             ),
           );
         },
@@ -338,17 +332,16 @@ class _MenuFloatingActionState extends State<MenuFloatingAction>
 }
 
 class _FloatingButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onPressed;
-
   const _FloatingButton({
     required this.icon,
     required this.label,
     required this.color,
     required this.onPressed,
   });
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {

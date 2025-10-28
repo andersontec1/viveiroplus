@@ -8,5 +8,18 @@ Future<void> exportarCsv(List<List<dynamic>> data, {String nomeArquivo = 'dados.
   final dir = await getTemporaryDirectory();
   final file = File('${dir.path}/$nomeArquivo');
   await file.writeAsString(csv);
-  await Share.shareXFiles([XFile(file.path)], text: 'Exportação de dados do Viveiro+');
+  // Compartilhar usando nova API do SharePlus
+  await SharePlus.instance.share(
+    ShareParams(
+      files: [
+        XFile.fromData(
+          await file.readAsBytes(),
+          name: nomeArquivo,
+          mimeType: 'text/csv',
+        ),
+      ],
+      text: 'Exportação CSV - Viveiro+',
+      subject: 'Exportação CSV',
+    ),
+  );
 }

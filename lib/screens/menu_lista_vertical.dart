@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:package_info_plus/package_info_plus.dart';
+// import removido pois não é utilizado diretamente nesta tela
 
 // Exemplo de menu em lista vertical moderna
 class MenuListaVertical extends StatefulWidget {
@@ -14,40 +14,29 @@ class MenuListaVertical extends StatefulWidget {
 
 class _MenuListaVerticalState extends State<MenuListaVertical> {
   String? _nomeUsuario;
-  String? _funcaoUsuario;
-  List<String> _permissoes = [];
-  String _versaoApp = '';
+  // Removidos campos não utilizados para evitar lints de "unused field"
 
   @override
   void initState() {
     super.initState();
     _buscarUsuario();
-    _carregarVersao();
   }
 
   Future<void> _buscarUsuario() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .get();
       if (doc.exists) {
         final data = doc.data() ?? {};
         setState(() {
           _nomeUsuario = data['nome'] ?? 'Usuário';
-          _funcaoUsuario = data['funcao'] ?? 'registrador';
-          final permissoesFirestore = data['permissoes'];
-          if (permissoesFirestore is List) {
-            _permissoes = permissoesFirestore.map((e) => e.toString()).toList();
-          } else {
-            _permissoes = [];
-          }
+          // Campos de função/permissões removidos por não serem utilizados nesta tela
         });
       }
     }
-  }
-
-  Future<void> _carregarVersao() async {
-    final info = await PackageInfo.fromPlatform();
-    setState(() => _versaoApp = info.version);
   }
 
   // Lista de opções do menu em formato de cards horizontais
@@ -62,24 +51,21 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        gradient: isHighlighted 
-          ? LinearGradient(
-              colors: [
-                const Color(0xFF049F56).withOpacity(0.1),
-                const Color(0xFF045D3A).withOpacity(0.05),
-              ],
-            )
-          : LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.9),
-                Colors.white.withOpacity(0.7),
-              ],
-            ),
+        gradient: isHighlighted
+            ? LinearGradient(
+                colors: [
+                  const Color(0xFF049F56).withOpacity(0.1),
+                  const Color(0xFF045D3A).withOpacity(0.05),
+                ],
+              )
+            : LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.9),
+                  Colors.white.withOpacity(0.7),
+                ],
+              ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -111,20 +97,17 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: (iconColor ?? const Color(0xFF049F56)).withOpacity(0.3),
+                        color: (iconColor ?? const Color(0xFF049F56))
+                            .withOpacity(0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 3),
                       ),
                     ],
                   ),
-                  child: Icon(
-                    icone,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  child: Icon(icone, color: Colors.white, size: 24),
                 ),
                 const SizedBox(width: 16),
-                
+
                 // Texto
                 Expanded(
                   child: Column(
@@ -150,7 +133,7 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
                     ],
                   ),
                 ),
-                
+
                 // Seta
                 Icon(
                   Icons.arrow_forward_ios,
@@ -190,23 +173,16 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF049F56),
-                      Color(0xFF045D3A),
-                    ],
+                    colors: [Color(0xFF049F56), Color(0xFF045D3A)],
                   ),
                 ),
                 child: const Center(
-                  child: Icon(
-                    Icons.waves,
-                    size: 80,
-                    color: Colors.white24,
-                  ),
+                  child: Icon(Icons.waves, size: 80, color: Colors.white24),
                 ),
               ),
             ),
           ),
-          
+
           // Lista de opções
           SliverToBoxAdapter(
             child: Padding(
@@ -222,7 +198,7 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
                     onTap: () {}, // Navegação aqui
                     isHighlighted: true,
                   ),
-                  
+
                   // Ração
                   _buildListTile(
                     titulo: 'Controle de Ração',
@@ -231,7 +207,7 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
                     iconColor: Colors.orange,
                     onTap: () {},
                   ),
-                  
+
                   // Viveiros
                   _buildListTile(
                     titulo: 'Viveiros e Berçários',
@@ -240,7 +216,7 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
                     iconColor: Colors.teal,
                     onTap: () {},
                   ),
-                  
+
                   // Insumos
                   _buildListTile(
                     titulo: 'Insumos e Estoque',
@@ -249,7 +225,7 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
                     iconColor: Colors.purple,
                     onTap: () {},
                   ),
-                  
+
                   // Ciclos
                   _buildListTile(
                     titulo: 'Gestão de Ciclos',
@@ -258,7 +234,7 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
                     iconColor: Colors.green,
                     onTap: () {},
                   ),
-                  
+
                   // Usuários
                   _buildListTile(
                     titulo: 'Gerenciar Usuários',
@@ -267,7 +243,7 @@ class _MenuListaVerticalState extends State<MenuListaVertical> {
                     iconColor: Colors.indigo,
                     onTap: () {},
                   ),
-                  
+
                   // Relatórios
                   _buildListTile(
                     titulo: 'Relatórios e Análises',

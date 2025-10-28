@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/responsive_center.dart';
 
 // Menu estilo dashboard com cards horizontais
 class MenuDashboard extends StatelessWidget {
@@ -27,10 +28,7 @@ class MenuDashboard extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  color.withOpacity(0.9),
-                  color,
-                ],
+                colors: [color.withOpacity(0.9), color],
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
@@ -79,7 +77,7 @@ class MenuDashboard extends StatelessWidget {
                     ],
                   ),
                 ),
-                
+
                 // Ícone e valor
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -90,11 +88,7 @@ class MenuDashboard extends StatelessWidget {
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Icon(
-                        icone,
-                        color: Colors.white,
-                        size: 32,
-                      ),
+                      child: Icon(icone, color: Colors.white, size: 32),
                     ),
                     if (!isLarge) ...[
                       const SizedBox(height: 8),
@@ -136,10 +130,7 @@ class MenuDashboard extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: color.withOpacity(0.2),
-                width: 1,
-              ),
+              border: Border.all(color: color.withOpacity(0.2), width: 1),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.03),
@@ -219,10 +210,7 @@ class MenuDashboard extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF049F56),
-                      Color(0xFF045D3A),
-                    ],
+                    colors: [Color(0xFF049F56), Color(0xFF045D3A)],
                   ),
                 ),
               ),
@@ -234,106 +222,112 @@ class MenuDashboard extends StatelessWidget {
               ),
             ],
           ),
-          
-          // Conteúdo
-          SliverPadding(
-            padding: const EdgeInsets.all(16),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // Cards principais
-                _buildDashboardCard(
-                  titulo: 'Análises de Água',
-                  subtitulo: 'Registros e monitoramento',
-                  valor: '24',
-                  icone: Icons.water_drop,
-                  color: Colors.blue,
-                  onTap: () {},
-                  isLarge: true,
-                ),
-                
-                _buildDashboardCard(
-                  titulo: 'Controle de Ração',
-                  subtitulo: 'Alimentação dos viveiros',
-                  valor: '8',
-                  icone: Icons.set_meal,
-                  color: Colors.orange,
-                  onTap: () {},
-                ),
-                
-                _buildDashboardCard(
-                  titulo: 'Viveiros Ativos',
-                  subtitulo: 'Em produção',
-                  valor: '12',
-                  icone: Icons.water,
-                  color: Colors.teal,
-                  onTap: () {},
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Seção de acesso rápido
-                Row(
+
+          // Conteúdo centralizado em telas largas
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: ResponsiveCenter(
+                padding: EdgeInsets.zero,
+                alignment: Alignment.topCenter,
+                child: Column(
                   children: [
-                    const Text(
-                      'Acesso Rápido',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF045D3A),
-                      ),
+                    // Cards principais
+                    _buildDashboardCard(
+                      titulo: 'Análises de Água',
+                      subtitulo: 'Registros e monitoramento',
+                      valor: '24',
+                      icone: Icons.water_drop,
+                      color: Colors.blue,
+                      onTap: () {},
+                      isLarge: true,
                     ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('Ver todos'),
+
+                    _buildDashboardCard(
+                      titulo: 'Controle de Ração',
+                      subtitulo: 'Alimentação dos viveiros',
+                      valor: '8',
+                      icone: Icons.set_meal,
+                      color: Colors.orange,
+                      onTap: () {},
                     ),
+
+                    _buildDashboardCard(
+                      titulo: 'Viveiros Ativos',
+                      subtitulo: 'Em produção',
+                      valor: '12',
+                      icone: Icons.water,
+                      color: Colors.teal,
+                      onTap: () {},
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Seção de acesso rápido
+                    Row(
+                      children: [
+                        const Text(
+                          'Acesso Rápido',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF045D3A),
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () {},
+                          child: const Text('Ver todos'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Lista de acesso rápido
+                    _buildQuickAccessTile(
+                      titulo: 'Insumos e Estoque',
+                      descricao: 'Controlar materiais e suprimentos',
+                      icone: Icons.inventory,
+                      color: Colors.purple,
+                      onTap: () {},
+                    ),
+
+                    _buildQuickAccessTile(
+                      titulo: 'Gestão de Ciclos',
+                      descricao: 'Biomassa, despesca e histórico',
+                      icone: Icons.history_toggle_off,
+                      color: Colors.green,
+                      onTap: () {},
+                    ),
+
+                    _buildQuickAccessTile(
+                      titulo: 'Gerenciar Usuários',
+                      descricao: 'Equipe e permissões',
+                      icone: Icons.people,
+                      color: Colors.indigo,
+                      onTap: () {},
+                    ),
+
+                    _buildQuickAccessTile(
+                      titulo: 'Relatórios e Análises',
+                      descricao: 'Dados e métricas detalhadas',
+                      icone: Icons.bar_chart,
+                      color: Colors.red,
+                      onTap: () {},
+                    ),
+
+                    _buildQuickAccessTile(
+                      titulo: 'Painel Web',
+                      descricao: 'Dashboard completo do sistema',
+                      icone: Icons.dashboard,
+                      color: Colors.pink,
+                      onTap: () {},
+                    ),
+
+                    const SizedBox(height: 20),
                   ],
                 ),
-                const SizedBox(height: 16),
-                
-                // Lista de acesso rápido
-                _buildQuickAccessTile(
-                  titulo: 'Insumos e Estoque',
-                  descricao: 'Controlar materiais e suprimentos',
-                  icone: Icons.inventory,
-                  color: Colors.purple,
-                  onTap: () {},
-                ),
-                
-                _buildQuickAccessTile(
-                  titulo: 'Gestão de Ciclos',
-                  descricao: 'Biomassa, despesca e histórico',
-                  icone: Icons.history_toggle_off,
-                  color: Colors.green,
-                  onTap: () {},
-                ),
-                
-                _buildQuickAccessTile(
-                  titulo: 'Gerenciar Usuários',
-                  descricao: 'Equipe e permissões',
-                  icone: Icons.people,
-                  color: Colors.indigo,
-                  onTap: () {},
-                ),
-                
-                _buildQuickAccessTile(
-                  titulo: 'Relatórios e Análises',
-                  descricao: 'Dados e métricas detalhadas',
-                  icone: Icons.bar_chart,
-                  color: Colors.red,
-                  onTap: () {},
-                ),
-                
-                _buildQuickAccessTile(
-                  titulo: 'Painel Web',
-                  descricao: 'Dashboard completo do sistema',
-                  icone: Icons.dashboard,
-                  color: Colors.pink,
-                  onTap: () {},
-                ),
-                
-                const SizedBox(height: 20),
-              ]),
+              ),
             ),
           ),
         ],

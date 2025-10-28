@@ -11,6 +11,7 @@ class TelaAnaliseAgua extends StatefulWidget {
 }
 
 class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
+  bool _salvando = false;
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
@@ -40,47 +41,6 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
                   ],
                 ),
               ),
-              // Card informativo de horários e parâmetros
-              Card(
-                color: const Color(0xFFe3f2fd),
-                elevation: 2,
-                margin: const EdgeInsets.only(bottom: 18),
-                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.schedule, color: Colors.blue, size: 22),
-                          SizedBox(width: 8),
-                          Text('Horários e Parâmetros de Análise', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _linhaHorario('4:00', 'Oxigênio e Saturação'),
-                      _linhaHorario('8:00', 'pH, Amônia e Nitrito'),
-                      _linhaHorario('13:00', 'Turbidez(NTU), Temperatura e Salinidade'),
-                      _linhaHorario('16:00', 'pH, Oxigênio e Saturação'),
-                      const SizedBox(height: 8),
-                      const Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.info_outline, color: Colors.orange, size: 18),
-                          SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'Obs: Amônia e Nitrito — 1 Vez por semana nos Viveiros, e 3 Vezes por Semana nos Berçários.',
-                              style: TextStyle(fontSize: 13, color: Colors.black87),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
               Expanded(
                 child: AnaliseAguaForm(
                   modoEdicao: false,
@@ -97,7 +57,10 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
   }
 
   Future<void> _salvarRegistro(Map<String, dynamic> dados) async {
+    if (_salvando) return; // evita múltiplos envios
+    setState(() => _salvando = true);
     try {
+      // Uso de ID automático novamente para permitir múltiplas leituras no mesmo minuto
       await FirebaseFirestore.instance.collection('registros_diarios').add(dados);
       
       if (!mounted) return;
@@ -133,32 +96,14 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
         ),
       );
 
-      Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar registro: $e')),
       );
+    } finally {
+      if (mounted) setState(() => _salvando = false);
     }
-  }
-
-  Widget _linhaHorario(String hora, String parametros) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade100,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(hora, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(parametros, style: const TextStyle(fontSize: 15))),
-        ],
-      ),
-    );
   }
 }

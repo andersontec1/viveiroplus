@@ -3,15 +3,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/degrade_fundo.dart';
+import '../helpers/confirmation_helper.dart';
+import '../helpers/audit_helper.dart';
+import '../helpers/security_helper.dart';
+import '../widgets/racao_meta_chips.dart';
 
 class TelaDetalhesBercario extends StatefulWidget {
   const TelaDetalhesBercario({
-    super.key,
+    this.docId,
     required this.codigo,
     required this.nome,
     required this.dadosBercario,
+    super.key,
   });
 
+  final String? docId;
   final String codigo;
   final String nome;
   final Map<String, dynamic> dadosBercario;
@@ -20,13 +26,56 @@ class TelaDetalhesBercario extends StatefulWidget {
   State<TelaDetalhesBercario> createState() => _TelaDetalhesBercarioState();
 }
 
-class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with SingleTickerProviderStateMixin {
+class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _podeExcluir = false;
+
+  // Verifica dependências antes da exclusão (berçário)
+  Future<String?> _validarExclusaoBercario(String codigo) async {
+    try {
+      final ciclosAtivos = await FirebaseFirestore.instance
+          .collection('ciclos')
+          .where('codigo', isEqualTo: codigo)
+          .where('encerrado', isEqualTo: false)
+          .limit(1)
+          .get();
+      if (ciclosAtivos.docs.isNotEmpty) {
+        return 'Existe um ciclo ativo para este berçário. Encerre o ciclo antes de excluir.';
+      }
+      final racao = await FirebaseFirestore.instance
+          .collection('racao')
+          .where('tipoDestino', isEqualTo: 'bercario')
+          .where('codigoDestino', isEqualTo: codigo)
+          .limit(1)
+          .get();
+      final analises = await FirebaseFirestore.instance
+          .collection('registros_diarios')
+          .where('tipoDestino', isEqualTo: 'bercario')
+          .where('codigo', isEqualTo: codigo)
+          .limit(1)
+          .get();
+      final despescas = await FirebaseFirestore.instance
+          .collection('despescas')
+          .where('codigo', isEqualTo: codigo)
+          .limit(1)
+          .get();
+      if (racao.docs.isNotEmpty ||
+          analises.docs.isNotEmpty ||
+          despescas.docs.isNotEmpty) {
+        return 'Existem registros relacionados (Ração, Análises ou Despesca). Por integridade, exclua-os ou arquive o berçário.';
+      }
+    } catch (e) {
+      return 'Não foi possível verificar dependências: ${e.toString()}';
+    }
+    return null;
+  }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _carregarPermissao();
   }
 
   @override
@@ -35,11 +84,20 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
     super.dispose();
   }
 
+  Future<void> _carregarPermissao() async {
+    try {
+      final adm = await SecurityHelper.temFuncaoAdministrativa();
+      if (mounted) setState(() => _podeExcluir = adm);
+    } catch (_) {}
+  }
+
   Widget _buildInfoCard() {
     final area = widget.dadosBercario['area'] ?? '—';
     final volume = widget.dadosBercario['volume'] ?? '—';
     final ts = (widget.dadosBercario['criadoEm'] as Timestamp?)?.toDate();
-    final criadoStr = ts != null ? DateFormat('dd/MM/yyyy HH:mm').format(ts) : 'Data desconhecida';
+    final criadoStr = ts != null
+        ? DateFormat('dd/MM/yyyy HH:mm').format(ts)
+        : 'Data desconhecida';
 
     Widget infoDetalhe(String label, String valor, {IconData? icon}) {
       return Container(
@@ -55,8 +113,17 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
               Icon(icon, color: Colors.green, size: 20),
               const SizedBox(width: 8),
             ],
-            Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(valor, style: TextStyle(color: Colors.green.shade900, fontWeight: FontWeight.w600)),
+            Text(
+              '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Text(
+              valor,
+              style: TextStyle(
+                color: Colors.green.shade900,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       );
@@ -73,7 +140,7 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
           children: [
             Row(
               children: [
-                Icon(Icons.spa, color: Colors.green, size: 32),
+                const Icon(Icons.spa, color: Colors.green, size: 32),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -81,7 +148,10 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                     children: [
                       Text(
                         widget.nome,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         'Código: ${widget.codigo}',
@@ -90,6 +160,15 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                     ],
                   ),
                 ),
+                if (_podeExcluir)
+                  IconButton(
+                    tooltip: 'Excluir',
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.redAccent,
+                    ),
+                    onPressed: _excluirBercario,
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -101,6 +180,70 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
         ),
       ),
     );
+  }
+
+  Future<void> _excluirBercario() async {
+    if (widget.docId == null || widget.docId!.isEmpty) {
+      await ConfirmationHelper.showError(
+        context: context,
+        content: 'ID do documento não disponível para exclusão.',
+      );
+      return;
+    }
+
+    final motivo = await _validarExclusaoBercario(widget.codigo);
+    if (motivo != null) {
+      await ConfirmationHelper.showError(
+        context: context,
+        title: 'Exclusão bloqueada',
+        content: motivo,
+      );
+      return;
+    }
+
+    final confirmou = await ConfirmationHelper.showDoubleConfirmation(
+      context: context,
+      title: 'Excluir Berçário',
+      content:
+          'Tem certeza que deseja excluir "${widget.nome}" (cód: ${widget.codigo})?',
+      secondTitle: 'Confirma exclusão?',
+      secondContent: 'Esta ação é irreversível. Deseja realmente excluir?',
+      actionLabel: 'Excluir',
+      actionColor: Colors.red,
+    );
+    if (confirmou != true) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('bercarios')
+          .doc(widget.docId)
+          .delete();
+      await AuditHelper.registrarAcao(
+        acao: 'BERCARIO_EXCLUIDO',
+        modulo: 'BERCARIOS',
+        detalhes: {
+          'docId': widget.docId,
+          'codigo': widget.codigo,
+          'nome': widget.nome,
+        },
+      );
+      if (mounted) {
+        await ConfirmationHelper.showSuccess(
+          context: context,
+          title: 'Berçário excluído',
+          content: 'O berçário foi removido com sucesso.',
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        await ConfirmationHelper.showError(
+          context: context,
+          content: 'Não foi possível excluir o berçário.',
+          error: e.toString(),
+        );
+      }
+    }
   }
 
   Widget _buildRegistrosAnalise() {
@@ -139,56 +282,267 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
             final dataHora = (data['dataHora'] as Timestamp).toDate();
             final registradoPor = data['registradoPor'] ?? '—';
 
-            // Criar chips de status como na listagem
-            final List<Widget> chips = [];
-            void addChip(bool condicao, String texto, Color cor) {
-              if (condicao) {
-                chips.add(Container(
-                  margin: const EdgeInsets.only(right: 4),
-                  child: Chip(
-                    label: Text(texto, style: const TextStyle(fontSize: 10, color: Colors.white)),
-                    backgroundColor: cor,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ));
+            // Gerar abreviações dos parâmetros registrados
+            List<String> parametrosRegistrados = [];
+
+            if (data['ph'] != null && data['ph'].toString().isNotEmpty) {
+              parametrosRegistrados.add('pH: ${data['ph']}');
+            }
+            if (data['oxigenio'] != null &&
+                data['oxigenio'].toString().isNotEmpty) {
+              parametrosRegistrados.add('O₂: ${data['oxigenio']}mg/L');
+            }
+            if (data['temperatura'] != null &&
+                data['temperatura'].toString().isNotEmpty) {
+              parametrosRegistrados.add('T°: ${data['temperatura']}°C');
+            }
+            if (data['salinidade'] != null &&
+                data['salinidade'].toString().isNotEmpty) {
+              parametrosRegistrados.add('Sal: ${data['salinidade']}ppt');
+            }
+            if (data['turbidez'] != null &&
+                data['turbidez'].toString().isNotEmpty) {
+              parametrosRegistrados.add('Turb: ${data['turbidez']}NTU');
+            }
+            if (data['nitrito'] != null &&
+                data['nitrito'].toString().isNotEmpty) {
+              parametrosRegistrados.add('NO₂: ${data['nitrito']}mg/L');
+            }
+            if (data['amonia'] != null &&
+                data['amonia'].toString().isNotEmpty) {
+              parametrosRegistrados.add('NH₃: ${data['amonia']}mg/L');
+            }
+            if (data['nitrato'] != null &&
+                data['nitrato'].toString().isNotEmpty) {
+              parametrosRegistrados.add('NO₃: ${data['nitrato']}mg/L');
+            }
+            if (data['alkalinidade'] != null &&
+                data['alkalinidade'].toString().isNotEmpty) {
+              parametrosRegistrados.add('Alc: ${data['alkalinidade']}mg/L');
+            }
+            if (data['dureza'] != null &&
+                data['dureza'].toString().isNotEmpty) {
+              parametrosRegistrados.add('Dur: ${data['dureza']}mg/L');
+            }
+
+            // Verificar se há parâmetros fora do ideal
+            int parametrosForaIdeal = 0;
+            for (var param in [
+              'ph',
+              'oxigenio',
+              'temperatura',
+              'salinidade',
+              'turbidez',
+              'nitrito',
+              'amonia',
+              'nitrato',
+              'alkalinidade',
+              'dureza',
+            ]) {
+              if (_foraDoIdeal(param, data[param])) {
+                parametrosForaIdeal++;
               }
             }
 
-            // Verificar parâmetros fora do ideal
-            addChip(_foraDoIdeal('ph', data['ph']), 'pH fora', Colors.red);
-            addChip(_foraDoIdeal('oxigenio', data['oxigenio']), 'O₂ fora', Colors.orange);
-            addChip(_foraDoIdeal('temperatura', data['temperatura']), 'Temp fora', Colors.blue);
-            addChip(_foraDoIdeal('salinidade', data['salinidade']), 'Sal fora', Colors.purple);
-            addChip(_foraDoIdeal('turbidez', data['turbidez']), 'Turbidez fora', Colors.brown);
-            addChip(_foraDoIdeal('saturacao_percentual', data['saturacao_percentual']), 'Sat% fora', Colors.indigo);
-            addChip(_foraDoIdeal('saturacao_oxigenio', data['saturacao_oxigenio']), 'SatO₂ fora', Colors.cyan);
-            addChip(_foraDoIdeal('calcio', data['calcio']), 'Ca fora', Colors.green);
-            addChip(_foraDoIdeal('nitrito', data['nitrito']), 'NO₂ fora', Colors.red.shade800);
-            addChip(_foraDoIdeal('amonia', data['amonia']), 'NH₃ fora', Colors.orange.shade800);
-
             return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 2,
-              child: ListTile(
+              elevation: 4,
+              margin: const EdgeInsets.only(bottom: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: parametrosForaIdeal > 0
+                    ? const BorderSide(color: Colors.orange, width: 2)
+                    : BorderSide.none,
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
                 onTap: () => _mostrarDetalhesAnalise(data),
-                leading: const Icon(Icons.analytics, color: Colors.green),
-                title: Text(
-                  DateFormat('dd/MM/yyyy HH:mm').format(dataHora),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Por: $registradoPor', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    if (chips.isNotEmpty)
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(children: chips),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.water_drop,
+                            color: parametrosForaIdeal > 0
+                                ? Colors.orange
+                                : Colors.green,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Análise de Água',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  DateFormat(
+                                    'dd/MM/yyyy HH:mm',
+                                  ).format(dataHora),
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  'Por: $registradoPor',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (parametrosForaIdeal > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '$parametrosForaIdeal ⚠️',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
+                      const SizedBox(height: 12),
+                      if (parametrosRegistrados.isNotEmpty) ...[
+                        const Text(
+                          'Parâmetros registrados:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: parametrosRegistrados.take(6).map((
+                            parametro,
+                          ) {
+                            final parts = parametro.split(': ');
+                            final nome = parts[0];
+
+                            // Verificar se este parâmetro específico está fora do ideal
+                            String campo = '';
+                            switch (nome) {
+                              case 'pH':
+                                campo = 'ph';
+                                break;
+                              case 'O₂':
+                                campo = 'oxigenio';
+                                break;
+                              case 'T°':
+                                campo = 'temperatura';
+                                break;
+                              case 'Sal':
+                                campo = 'salinidade';
+                                break;
+                              case 'Turb':
+                                campo = 'turbidez';
+                                break;
+                              case 'NO₂':
+                                campo = 'nitrito';
+                                break;
+                              case 'NH₃':
+                                campo = 'amonia';
+                                break;
+                              case 'NO₃':
+                                campo = 'nitrato';
+                                break;
+                              case 'Alc':
+                                campo = 'alkalinidade';
+                                break;
+                              case 'Dur':
+                                campo = 'dureza';
+                                break;
+                            }
+
+                            final foraIdeal = _foraDoIdeal(campo, data[campo]);
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: foraIdeal
+                                    ? Colors.orange.shade100
+                                    : Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: foraIdeal
+                                      ? Colors.orange
+                                      : Colors.green.shade200,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                parametro,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: foraIdeal
+                                      ? Colors.orange.shade800
+                                      : Colors.green.shade800,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        if (parametrosRegistrados.length > 6)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              '+${parametrosRegistrados.length - 6} parâmetros...',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey.shade600,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                      ] else
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Nenhum parâmetro registrado',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               ),
             );
           },
@@ -199,30 +553,30 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
 
   bool _foraDoIdeal(String parametro, dynamic valor) {
     if (valor == null) return false;
-    
+
     try {
       final double val = double.parse(valor.toString());
       switch (parametro) {
         case 'ph':
-          return val < 7.0 || val > 9.0;
+          return val < 6.5 || val > 8.5;
         case 'oxigenio':
-          return val < 4.0 || val > 14.0;
+          return val < 5.0 || val > 8.0;
         case 'temperatura':
-          return val < 28.0 || val > 32.0;
+          return val < 26.0 || val > 30.0;
         case 'salinidade':
-          return val < 30.0 || val > 45.0;
-        case 'turbidez':
-          return val < 40.0 || val > 60.0;
-        case 'saturacao_percentual':
-          return val < 80.0 || val > 120.0;
-        case 'saturacao_oxigenio':
-          return val < 80.0 || val > 120.0;
-        case 'calcio':
-          return val < 100.0 || val > 300.0;
+          return val < 15.0 || val > 25.0;
+        case 'amonia':
+          return val < 0.0 || val > 0.1;
         case 'nitrito':
           return val < 0.0 || val > 0.5;
-        case 'amonia':
-          return val < 0.0 || val > 1.5;
+        case 'nitrato':
+          return val < 0.0 || val > 40.0;
+        case 'turbidez':
+          return val < 0.0 || val > 5.0;
+        case 'alkalinidade':
+          return val < 80.0 || val > 120.0;
+        case 'dureza':
+          return val < 150.0 || val > 300.0;
         default:
           return false;
       }
@@ -232,14 +586,27 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
   }
 
   Widget _buildRegistrosRacao() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('racao')
-          .where('codigo', isEqualTo: widget.codigo)
+    // Preferir novos campos (codigoDestino/dataRegistro) com fallback para legado
+    Query base = FirebaseFirestore.instance.collection('racao');
+    Stream<QuerySnapshot> stream;
+    try {
+      stream = base
           .where('tipoDestino', isEqualTo: 'bercario')
+          .where('codigoDestino', isEqualTo: widget.codigo)
+          .orderBy('dataRegistro', descending: true)
+          .limit(20)
+          .snapshots();
+    } catch (_) {
+      stream = base
+          .where('tipoDestino', isEqualTo: 'bercario')
+          .where('codigo', isEqualTo: widget.codigo)
           .orderBy('timestamp', descending: true)
-          .limit(10)
-          .snapshots(),
+          .limit(20)
+          .snapshots();
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -264,17 +631,31 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
           itemBuilder: (context, index) {
             final doc = docs[index];
             final data = doc.data() as Map<String, dynamic>;
-            final timestamp = (data['timestamp'] as Timestamp).toDate();
+            final ts =
+                (data['dataRegistro'] as Timestamp?) ??
+                (data['timestamp'] as Timestamp?);
+            final timestamp = ts?.toDate() ?? DateTime.now();
             final quantidade = data['quantidade'] ?? 0;
             final sobras = data['sobras'] ?? 0;
             final registradoPor = data['registradoPor'] ?? '—';
+            final int? trato = data['trato'] is num
+                ? (data['trato'] as num).toInt()
+                : null;
+            final int? diaCiclo = data['diaCiclo'] is num
+                ? (data['diaCiclo'] as num).toInt()
+                : null;
+            final double? totalAcumulado = data['totalAcumulado'] is num
+                ? (data['totalAcumulado'] as num).toDouble()
+                : null;
 
             // Calcular a ração efetivamente consumida
             final consumo = quantidade - sobras;
 
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               elevation: 2,
               child: ListTile(
                 onTap: () => _mostrarDetalhesRacao(data),
@@ -286,9 +667,37 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (trato != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          'Trato: ${trato}º',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ),
                     Text('Fornecido: ${quantidade}kg | Consumo: ${consumo}kg'),
-                    if (sobras > 0) Text('Sobras: ${sobras}kg', style: TextStyle(color: Colors.orange[700])),
-                    Text('Por: $registradoPor', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    if (sobras > 0)
+                      Text(
+                        'Sobras: ${sobras}kg',
+                        style: TextStyle(color: Colors.orange[700]),
+                      ),
+                    Text(
+                      'Por: $registradoPor',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    if (diaCiclo != null || totalAcumulado != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: RacaoMetaChips(
+                          trato: null,
+                          diaCiclo: diaCiclo,
+                          totalAcumulado: totalAcumulado,
+                          baseSwatch: Colors.green,
+                        ),
+                      ),
                   ],
                 ),
                 trailing: Column(
@@ -298,7 +707,11 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                     if (sobras > quantidade * 0.2) // Se sobras > 20%
                       Container(
                         margin: const EdgeInsets.only(top: 2),
-                        child: const Icon(Icons.warning, color: Colors.orange, size: 14),
+                        child: const Icon(
+                          Icons.warning,
+                          color: Colors.orange,
+                          size: 14,
+                        ),
                       ),
                   ],
                 ),
@@ -312,8 +725,13 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
 
   void _mostrarDetalhesAnalise(Map<String, dynamic> data) {
     final dt = (data['dataHora'] as Timestamp).toDate();
-    
-    Widget paramDetalhe(String label, String campo, String unidade, {String? ideal}) {
+
+    Widget paramDetalhe(
+      String label,
+      String campo,
+      String unidade, {
+      String? ideal,
+    }) {
       final valor = data[campo];
       final fora = _foraDoIdeal(campo, valor);
       return Container(
@@ -327,11 +745,18 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             if (fora)
-              const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 18),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 18,
+              ),
             if (!fora)
               const Icon(Icons.check_circle, color: Colors.green, size: 18),
             const SizedBox(width: 6),
-            Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             Text(
               valor != null ? valor.toString() : '—',
               style: TextStyle(
@@ -343,7 +768,10 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
             if (fora && ideal != null)
               Padding(
                 padding: const EdgeInsets.only(left: 6),
-                child: Text('(Ideal: $ideal)', style: const TextStyle(color: Colors.green, fontSize: 12)),
+                child: Text(
+                  '(Ideal: $ideal)',
+                  style: const TextStyle(color: Colors.green, fontSize: 12),
+                ),
               ),
           ],
         ),
@@ -352,7 +780,7 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
 
     final editadoPor = data['editadoPor'];
     final editadoEm = data['editadoEm'];
-    
+
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -374,7 +802,13 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                   children: [
                     Icon(Icons.analytics, color: Colors.green, size: 28),
                     SizedBox(width: 8),
-                    Text('Análise de Água', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    Text(
+                      'Análise de Água',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -386,34 +820,95 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                     children: [
                       Container(
                         margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.calendar_today, color: Colors.green, size: 18),
+                            const Icon(
+                              Icons.calendar_today,
+                              color: Colors.green,
+                              size: 18,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'Data: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
                       ),
                       paramDetalhe('pH', 'ph', '', ideal: '7.0 - 9.0'),
-                      paramDetalhe('Oxigênio', 'oxigenio', 'mg/L', ideal: '4.0 - 14.0'),
-                      paramDetalhe('Temperatura', 'temperatura', '°C', ideal: '28 - 32'),
-                      paramDetalhe('Salinidade', 'salinidade', 'ppt', ideal: '30 - 45'),
-                      if (data['turbidez'] != null) paramDetalhe('Turbidez', 'turbidez', 'NTU', ideal: '40 - 60'),
-                      if (data['saturacao_percentual'] != null) paramDetalhe('Saturação %', 'saturacao_percentual', '%', ideal: '80 - 120'),
-                      if (data['saturacao_oxigenio'] != null) paramDetalhe('Saturação O₂', 'saturacao_oxigenio', '%', ideal: '80 - 120'),
-                      if (data['calcio'] != null) paramDetalhe('Cálcio', 'calcio', 'mg/L', ideal: '100 - 300'),
-                      if (data['nitrito'] != null) paramDetalhe('Nitrito', 'nitrito', 'mg/L', ideal: '0.0 - 0.5'),
-                      if (data['amonia'] != null) paramDetalhe('Amônia', 'amonia', 'mg/L', ideal: '0.0 - 1.5'),
-                      
-                      if (data['observacoes'] != null && data['observacoes'].toString().isNotEmpty) ...[
+                      paramDetalhe(
+                        'Oxigênio',
+                        'oxigenio',
+                        'mg/L',
+                        ideal: '4.0 - 14.0',
+                      ),
+                      paramDetalhe(
+                        'Temperatura',
+                        'temperatura',
+                        '°C',
+                        ideal: '28 - 32',
+                      ),
+                      paramDetalhe(
+                        'Salinidade',
+                        'salinidade',
+                        'ppt',
+                        ideal: '30 - 45',
+                      ),
+                      if (data['turbidez'] != null)
+                        paramDetalhe(
+                          'Turbidez',
+                          'turbidez',
+                          'NTU',
+                          ideal: '40 - 60',
+                        ),
+                      if (data['saturacao_percentual'] != null)
+                        paramDetalhe(
+                          'Saturação %',
+                          'saturacao_percentual',
+                          '%',
+                          ideal: '80 - 120',
+                        ),
+                      if (data['saturacao_oxigenio'] != null)
+                        paramDetalhe(
+                          'Saturação O₂',
+                          'saturacao_oxigenio',
+                          '%',
+                          ideal: '80 - 120',
+                        ),
+                      if (data['calcio'] != null)
+                        paramDetalhe(
+                          'Cálcio',
+                          'calcio',
+                          'mg/L',
+                          ideal: '100 - 300',
+                        ),
+                      if (data['nitrito'] != null)
+                        paramDetalhe(
+                          'Nitrito',
+                          'nitrito',
+                          'mg/L',
+                          ideal: '0.0 - 0.5',
+                        ),
+                      if (data['amonia'] != null)
+                        paramDetalhe(
+                          'Amônia',
+                          'amonia',
+                          'mg/L',
+                          ideal: '0.0 - 1.5',
+                        ),
+
+                      if (data['observacoes'] != null &&
+                          data['observacoes'].toString().isNotEmpty) ...[
                         const SizedBox(height: 10),
                         Container(
                           width: double.infinity,
@@ -427,9 +922,18 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                             children: [
                               const Row(
                                 children: [
-                                  Icon(Icons.note, color: Colors.blue, size: 18),
+                                  Icon(
+                                    Icons.note,
+                                    color: Colors.blue,
+                                    size: 18,
+                                  ),
                                   SizedBox(width: 6),
-                                  Text('Observações:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text(
+                                    'Observações:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 4),
@@ -451,8 +955,17 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Editado:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                              Text('Por: $editadoPor', style: const TextStyle(fontSize: 12)),
+                              const Text(
+                                'Editado:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                'Por: $editadoPor',
+                                style: const TextStyle(fontSize: 12),
+                              ),
                               if (editadoEm != null)
                                 Text(
                                   'Em: ${DateFormat('dd/MM/yyyy HH:mm').format((editadoEm as Timestamp).toDate())}',
@@ -481,12 +994,26 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
   }
 
   void _mostrarDetalhesRacao(Map<String, dynamic> data) {
-    final dt = (data['timestamp'] as Timestamp).toDate();
+    final ts =
+        (data['dataRegistro'] as Timestamp?) ??
+        (data['timestamp'] as Timestamp?);
+    final dt = ts?.toDate() ?? DateTime.now();
     final quantidade = data['quantidade'] ?? 0;
     final sobras = data['sobras'] ?? 0;
     final consumo = quantidade - sobras;
-    final eficiencia = quantidade > 0 ? ((consumo / quantidade) * 100).toStringAsFixed(1) : '0';
-    
+    final eficiencia = quantidade > 0
+        ? ((consumo / quantidade) * 100).toStringAsFixed(1)
+        : '0';
+    final int? trato = data['trato'] is num
+        ? (data['trato'] as num).toInt()
+        : null;
+    final int? diaCiclo = data['diaCiclo'] is num
+        ? (data['diaCiclo'] as num).toInt()
+        : null;
+    final double? totalAcumulado = data['totalAcumulado'] is num
+        ? (data['totalAcumulado'] as num).toDouble()
+        : null;
+
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -507,7 +1034,13 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                   children: [
                     Icon(Icons.set_meal, color: Colors.green, size: 28),
                     SizedBox(width: 8),
-                    Text('Registro de Ração', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    Text(
+                      'Registro de Ração',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -518,14 +1051,21 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                   children: [
                     Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.calendar_today, color: Colors.green, size: 18),
+                          const Icon(
+                            Icons.calendar_today,
+                            color: Colors.green,
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'Data: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}',
@@ -534,29 +1074,63 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                         ],
                       ),
                     ),
-                    
+
+                    if (trato != null ||
+                        diaCiclo != null ||
+                        totalAcumulado != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: RacaoMetaChips(
+                          trato: trato,
+                          diaCiclo: diaCiclo,
+                          totalAcumulado: totalAcumulado,
+                          baseSwatch: Colors.green,
+                        ),
+                      ),
+
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 3),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.green.shade50,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.restaurant, color: Colors.green, size: 18),
+                          const Icon(
+                            Icons.restaurant,
+                            color: Colors.green,
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
-                          Text('Quantidade fornecida: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text('${quantidade} kg', style: TextStyle(color: Colors.green.shade900, fontWeight: FontWeight.w600)),
+                          const Text(
+                            'Quantidade fornecida: ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '$quantidade kg',
+                            style: TextStyle(
+                              color: Colors.green.shade900,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    
+
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 3),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: sobras > 0 ? Colors.orange.shade50 : Colors.green.shade50,
+                        color: sobras > 0
+                            ? Colors.orange.shade50
+                            : Colors.green.shade50,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
@@ -567,33 +1141,58 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                             size: 18,
                           ),
                           const SizedBox(width: 6),
-                          Text('Sobras: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text('${sobras} kg', style: TextStyle(
-                            color: sobras > 0 ? Colors.orange.shade900 : Colors.green.shade900,
-                            fontWeight: FontWeight.w600,
-                          )),
+                          const Text(
+                            'Sobras: ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '$sobras kg',
+                            style: TextStyle(
+                              color: sobras > 0
+                                  ? Colors.orange.shade900
+                                  : Colors.green.shade900,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    
+
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 3),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.trending_up, color: Colors.blue, size: 18),
+                          const Icon(
+                            Icons.trending_up,
+                            color: Colors.blue,
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
-                          Text('Consumo efetivo: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text('${consumo} kg (${eficiencia}%)', style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.w600)),
+                          const Text(
+                            'Consumo efetivo: ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '$consumo kg ($eficiencia%)',
+                            style: TextStyle(
+                              color: Colors.blue.shade900,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
 
-                    if (data['probióticoAplicado'] != null && data['probióticoAplicado'].toString().isNotEmpty) ...[
+                    if (data['probióticoAplicado'] != null &&
+                        data['probióticoAplicado'].toString().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Container(
                         width: double.infinity,
@@ -607,9 +1206,16 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                           children: [
                             const Row(
                               children: [
-                                Icon(Icons.science, color: Colors.purple, size: 18),
+                                Icon(
+                                  Icons.science,
+                                  color: Colors.purple,
+                                  size: 18,
+                                ),
                                 SizedBox(width: 6),
-                                Text('Probiótico aplicado:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                Text(
+                                  'Probiótico aplicado:',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 4),
@@ -618,8 +1224,9 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                         ),
                       ),
                     ],
-                    
-                    if (data['observacoes'] != null && data['observacoes'].toString().isNotEmpty) ...[
+
+                    if (data['observacoes'] != null &&
+                        data['observacoes'].toString().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Container(
                         width: double.infinity,
@@ -635,7 +1242,10 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                               children: [
                                 Icon(Icons.note, color: Colors.amber, size: 18),
                                 SizedBox(width: 6),
-                                Text('Observações:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                Text(
+                                  'Observações:',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 4),
@@ -680,24 +1290,15 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario> with Single
                 unselectedLabelColor: Colors.grey,
                 indicatorColor: Colors.green,
                 tabs: const [
-                  Tab(
-                    icon: Icon(Icons.analytics),
-                    text: 'Análise de Água',
-                  ),
-                  Tab(
-                    icon: Icon(Icons.set_meal),
-                    text: 'Ração',
-                  ),
+                  Tab(icon: Icon(Icons.analytics), text: 'Análise de Água'),
+                  Tab(icon: Icon(Icons.set_meal), text: 'Ração'),
                 ],
               ),
             ),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
-                children: [
-                  _buildRegistrosAnalise(),
-                  _buildRegistrosRacao(),
-                ],
+                children: [_buildRegistrosAnalise(), _buildRegistrosRacao()],
               ),
             ),
           ],

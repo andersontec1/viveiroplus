@@ -8,14 +8,13 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/degrade_fundo.dart';
 
 class TelaEncerramentoCiclo extends StatefulWidget {
-  final String codigoViveiro;
-  final Map<String, dynamic> cicloAtivo;
-
   const TelaEncerramentoCiclo({
     super.key,
     required this.codigoViveiro,
     required this.cicloAtivo,
   });
+  final String codigoViveiro;
+  final Map<String, dynamic> cicloAtivo;
 
   @override
   State<TelaEncerramentoCiclo> createState() => _TelaEncerramentoCicloState();
@@ -23,10 +22,10 @@ class TelaEncerramentoCiclo extends StatefulWidget {
 
 class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
   static const _corPrimaria = Color(0xFF049F56);
-  
+
   final _formKey = GlobalKey<FormState>();
   final _observacoesCtrl = TextEditingController();
-  
+
   bool _carregando = false;
   bool _encerrando = false;
   Map<String, dynamic> _resumoDespesca = {};
@@ -39,7 +38,7 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
 
   Future<void> _carregarResumoDespesca() async {
     setState(() => _carregando = true);
-    
+
     try {
       final despescas = await FirebaseFirestore.instance
           .collection('despescas')
@@ -57,7 +56,7 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
         final data = doc.data();
         pesoTotal += (data['pesoTotal'] ?? 0.0);
         valorTotal += (data['valorTotal'] ?? 0.0);
-        
+
         final dataHora = (data['dataHora'] as Timestamp).toDate();
         if (primeiraDespesca == null || dataHora.isBefore(primeiraDespesca)) {
           primeiraDespesca = dataHora;
@@ -93,7 +92,7 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
         content: const Text(
           'Tem certeza que deseja encerrar este ciclo?\n\n'
           '⚠️ Esta ação não pode ser desfeita!\n\n'
-          'O ciclo será marcado como encerrado e não poderá mais receber registros.'
+          'O ciclo será marcado como encerrado e não poderá mais receber registros.',
         ),
         actions: [
           TextButton(
@@ -103,7 +102,10 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: _corPrimaria),
-            child: const Text('Encerrar Ciclo', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Encerrar Ciclo',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -117,10 +119,13 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Usuário não autenticado');
 
-      final nomeUsuario = (await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .get()).data()?['nome'] ?? '—';
+      final nomeUsuario =
+          (await FirebaseFirestore.instance
+                  .collection('usuarios')
+                  .doc(user.uid)
+                  .get())
+              .data()?['nome'] ??
+          '—';
 
       // Buscar o documento do ciclo
       final ciclosQuery = await FirebaseFirestore.instance
@@ -135,7 +140,7 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
       }
 
       final cicloDoc = ciclosQuery.docs.first;
-      
+
       // Atualizar o ciclo
       await cicloDoc.reference.update({
         'encerrado': true,
@@ -145,24 +150,32 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
         'resumoFinal': {
           'pesoTotalDespescado': _resumoDespesca['pesoTotal'] ?? 0,
           'valorTotalFaturado': _resumoDespesca['valorTotal'] ?? 0,
-          'duracaoCicloEmDias': DateTime.now().difference((widget.cicloAtivo['dataInicio'] as Timestamp).toDate()).inDays,
+          'duracaoCicloEmDias': DateTime.now()
+              .difference(
+                (widget.cicloAtivo['dataInicio'] as Timestamp).toDate(),
+              )
+              .inDays,
           'quantidadeEstocadaInicial': widget.cicloAtivo['quantidadeEstocada'],
         },
       });
 
       if (mounted) {
         Navigator.pop(context); // Volta para a tela anterior
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('✅ Ciclo encerrado com sucesso!'),
-          backgroundColor: Colors.green,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Ciclo encerrado com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('❌ Erro ao encerrar ciclo: $e'),
-          backgroundColor: Colors.red,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erro ao encerrar ciclo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       setState(() => _encerrando = false);
@@ -199,7 +212,7 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 '🏁 Finalizando Ciclo',
                                 style: TextStyle(
                                   fontSize: 20,
@@ -209,9 +222,15 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                               ),
                               const SizedBox(height: 8),
                               Text('Viveiro: ${widget.codigoViveiro}'),
-                              Text('Início: ${DateFormat('dd/MM/yyyy').format((widget.cicloAtivo['dataInicio'] as Timestamp).toDate())}'),
-                              Text('Duração: ${DateTime.now().difference((widget.cicloAtivo['dataInicio'] as Timestamp).toDate()).inDays} dias'),
-                              Text('Quantidade estocada: ${widget.cicloAtivo['quantidadeEstocada']} camarões'),
+                              Text(
+                                'Início: ${DateFormat('dd/MM/yyyy').format((widget.cicloAtivo['dataInicio'] as Timestamp).toDate())}',
+                              ),
+                              Text(
+                                'Duração: ${DateTime.now().difference((widget.cicloAtivo['dataInicio'] as Timestamp).toDate()).inDays} dias',
+                              ),
+                              Text(
+                                'Quantidade estocada: ${widget.cicloAtivo['quantidadeEstocada']} camarões',
+                              ),
                             ],
                           ),
                         ),
@@ -222,7 +241,10 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                       // Resumo da despesca
                       const Text(
                         '📊 Resumo da Despesca',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Card(
@@ -251,7 +273,8 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                                 Icons.list,
                                 Colors.orange,
                               ),
-                              if (_resumoDespesca['primeiraDespesca'] != null) ...[
+                              if (_resumoDespesca['primeiraDespesca'] !=
+                                  null) ...[
                                 const Divider(),
                                 _buildResumoItem(
                                   'Período da Despesca',
@@ -270,7 +293,10 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                       // Indicadores de produtividade
                       const Text(
                         '📈 Indicadores de Produtividade',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Card(
@@ -306,14 +332,18 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                       // Observações finais
                       const Text(
                         '📝 Observações Finais (Opcional)',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _observacoesCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Observações sobre o encerramento',
-                          hintText: 'Ex: Resultado satisfatório, mortalidade baixa, problemas identificados...',
+                          hintText:
+                              'Ex: Resultado satisfatório, mortalidade baixa, problemas identificados...',
                           prefixIcon: Icon(Icons.note),
                         ),
                         maxLines: 4,
@@ -327,7 +357,10 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                         height: 60,
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [_corPrimaria, _corPrimaria.withOpacity(0.8)],
+                            colors: [
+                              _corPrimaria,
+                              _corPrimaria.withOpacity(0.8),
+                            ],
                           ),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
@@ -346,12 +379,16 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
                                   ),
                                 )
                               : const Icon(Icons.flag, color: Colors.white),
                           label: Text(
-                            _encerrando ? 'Encerrando Ciclo...' : 'Encerrar Ciclo Definitivamente',
+                            _encerrando
+                                ? 'Encerrando Ciclo...'
+                                : 'Encerrar Ciclo Definitivamente',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,
@@ -380,7 +417,10 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade600),
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.orange.shade600,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
@@ -402,7 +442,12 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
     );
   }
 
-  Widget _buildResumoItem(String titulo, String valor, IconData icone, Color cor) {
+  Widget _buildResumoItem(
+    String titulo,
+    String valor,
+    IconData icone,
+    Color cor,
+  ) {
     return Row(
       children: [
         Container(
@@ -422,10 +467,7 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
         ),
         Text(
           valor,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: cor,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: cor),
         ),
       ],
     );
@@ -444,7 +486,7 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
         ),
         Text(
           valor,
-          style: TextStyle(
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: _corPrimaria,
           ),

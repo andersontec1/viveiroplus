@@ -28,7 +28,7 @@ class ConfirmationHelper {
     // Primeiro diálogo de confirmação
     final confirm1 = await showDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogContext) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Container(
           padding: const EdgeInsets.all(0),
@@ -68,12 +68,12 @@ class ConfirmationHelper {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     TextButton(
-                      onPressed: () => Navigator.pop(context, false),
+                      onPressed: () => Navigator.pop(dialogContext, false),
                       child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: () => Navigator.pop(dialogContext, true),
                       child: const Text('Continuar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ],
@@ -85,12 +85,15 @@ class ConfirmationHelper {
       ),
     );
     
-    if (confirm1 != true) return false;
+  if (confirm1 != true) return false;
+
+  // Evita usar o BuildContext se o widget original foi desmontado
+  if (!context.mounted) return false;
 
     // Segundo diálogo de confirmação
     final confirm2 = await showDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogContext) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Container(
           padding: const EdgeInsets.all(0),
@@ -130,12 +133,12 @@ class ConfirmationHelper {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     TextButton(
-                      onPressed: () => Navigator.pop(context, false),
+                      onPressed: () => Navigator.pop(dialogContext, false),
                       child: const Text('Não', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: actionColor ?? Colors.red),
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: () => Navigator.pop(dialogContext, true),
                       child: Text(actionLabel ?? 'Excluir', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ],
@@ -168,7 +171,7 @@ class ConfirmationHelper {
   }) async {
     return showDialog(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogContext) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Container(
           padding: const EdgeInsets.all(0),
@@ -201,7 +204,7 @@ class ConfirmationHelper {
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -223,8 +226,8 @@ class ConfirmationHelper {
   /// [backgroundColor] - Cor de fundo do cabeçalho (padrão: Color(0xFFFFCDD2))
   static Future<void> showError({
     required BuildContext context,
-    String? title,
     required String content,
+    String? title,
     String? error,
     IconData? icon,
     Color? iconColor,
@@ -232,7 +235,7 @@ class ConfirmationHelper {
   }) async {
     return showDialog(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogContext) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Container(
           padding: const EdgeInsets.all(0),
@@ -269,7 +272,7 @@ class ConfirmationHelper {
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Fechar', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -291,7 +294,7 @@ class ConfirmationHelper {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => Center(
+      builder: (dialogContext) => Center(
         child: Card(
           child: Padding(
             padding: const EdgeInsets.all(20),

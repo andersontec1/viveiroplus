@@ -1,6 +1,7 @@
 // security_helper.dart - Validações de segurança
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'permissions_helper.dart';
 
 class SecurityHelper {
   /// Verifica se o usuário atual tem permissão para uma ação específica
@@ -18,9 +19,15 @@ class SecurityHelper {
 
       final data = doc.data()!;
       final funcao = data['funcao'] as String?;
-      final permissoes = data['permissoes'] as List<dynamic>?;
+      final permissoesRaw = data['permissoes'];
+      final canonical = PermissionsHelper.normalize(permissoesRaw);
 
-      return _validarPermissao(funcao, permissoes, acao);
+      // Fallback para presets da função quando não há lista explícita
+      final effective = canonical.isNotEmpty
+          ? canonical
+          : PermissionsHelper.forRole(funcao);
+
+      return PermissionsHelper.contains(effective, acao) || (funcao == 'admin');
     } catch (e) {
       return false;
     }
@@ -28,8 +35,8 @@ class SecurityHelper {
 
   /// Verifica se o usuário pode gerenciar outros usuários
   static Future<bool> podeGerenciarUsuarios() async {
-    return await temPermissao('gerenciar_usuarios') || 
-           await temFuncaoAdministrativa();
+    return await temPermissao('gerenciar_usuarios') ||
+        await temFuncaoAdministrativa();
   }
 
   /// Verifica se o usuário tem função administrativa
@@ -138,75 +145,52 @@ class SecurityHelper {
   /// Valida senha forte
   static bool senhaForte(String senha) {
     if (senha.length < 8) return false;
-    
+
     final temLetraMaiuscula = senha.contains(RegExp(r'[A-Z]'));
     final temLetraMinuscula = senha.contains(RegExp(r'[a-z]'));
     final temNumero = senha.contains(RegExp(r'[0-9]'));
-    final temCaractereEspecial = senha.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+    final temCaractereEspecial = senha.contains(
+      RegExp(r'[!@#$%^&*(),.?":{}|<>]'),
+    );
 
-    return temLetraMaiuscula && temLetraMinuscula && temNumero && temCaractereEspecial;
+    return temLetraMaiuscula &&
+        temLetraMinuscula &&
+        temNumero &&
+        temCaractereEspecial;
   }
 
   /// Valida nome de usuário
   static bool nomeUsuarioValido(String nomeUsuario) {
     if (nomeUsuario.length < 3) return false;
-    
+
     // Apenas letras, números e underscore
     final regex = RegExp(r'^[a-zA-Z0-9_]+$');
     return regex.hasMatch(nomeUsuario);
   }
 
   /// Verifica se nome de usuário já existe
-  static Future<bool> nomeUsuarioExiste(String nomeUsuario, {String? uidIgnorar}) async {
+  static Future<bool> nomeUsuarioExiste(
+    String nomeUsuario, {
+    String? uidIgnorar,
+  }) async {
     try {
       final query = FirebaseFirestore.instance
           .collection('usuarios')
           .where('nomeusuario', isEqualTo: nomeUsuario.toLowerCase());
 
       final docs = await query.get();
-      
+
       if (uidIgnorar != null) {
         return docs.docs.any((doc) => doc.id != uidIgnorar);
       }
-      
+
       return docs.docs.isNotEmpty;
     } catch (e) {
       return false;
     }
   }
 
-  /// Valida permissões personalizada
-  static bool _validarPermissao(String? funcao, List<dynamic>? permissoes, String acao) {
-    // Admin tem todas as permissões
-    if (funcao == 'admin') return true;
-
-    // Verificar permissões específicas
-    if (permissoes != null && permissoes.contains(acao)) return true;
-
-    // Verificar permissões por função
-    const permissoesPorFuncao = {
-      'gerente': [
-        'gerenciar_usuarios',
-        'visualizar_relatorios',
-        'gerenciar_estoque',
-      ],
-      'supervisor': [
-        'visualizar_relatorios',
-        'gerenciar_estoque',
-      ],
-      'arraçoador': [
-        'registrar_racao',
-        'visualizar_estoque',
-      ],
-      'registrador': [
-        'registrar_analises',
-        'visualizar_dados',
-      ],
-    };
-
-    final permissoesFuncao = permissoesPorFuncao[funcao] ?? [];
-    return permissoesFuncao.contains(acao);
-  }
+  // Removido _validarPermissao: lógica centralizada em PermissionsHelper
 
   /// Verifica se é admin
   static Future<bool> _isAdmin() async {
@@ -229,20 +213,24 @@ class SecurityHelper {
   static final Map<String, List<DateTime>> _rateLimitMap = {};
 
   /// Verifica rate limiting para ações sensíveis
-  static bool verificarRateLimit(String acao, {int limite = 5, Duration janela = const Duration(minutes: 1)}) {
+  static bool verificarRateLimit(
+    String acao, {
+    int limite = 5,
+    Duration janela = const Duration(minutes: 1),
+  }) {
     final agora = DateTime.now();
     final chave = '${FirebaseAuth.instance.currentUser?.uid}_$acao';
-    
+
     _rateLimitMap[chave] ??= [];
     final tentativas = _rateLimitMap[chave]!;
-    
+
     // Remove tentativas antigas
     tentativas.removeWhere((data) => agora.difference(data) > janela);
-    
+
     if (tentativas.length >= limite) {
       return false; // Rate limit excedido
     }
-    
+
     tentativas.add(agora);
     return true;
   }

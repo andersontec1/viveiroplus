@@ -1,18 +1,37 @@
 {
-  "hosting": {
-    "public": "build/web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
+  "firestore": {
+    "indexes": "firestore.indexes.json"
   },
+  "hosting": [
+    {
+      "site": "viveiroplusweb",
+      "public": "build/web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        { "source": "/index.html", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] },
+        { "source": "/flutter_service_worker.js", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] },
+        { "source": "/flutter_bootstrap.js", "headers": [ { "key": "Cache-Control", "value": "public, max-age=3600" } ] },
+        { "source": "/flutter.js", "headers": [ { "key": "Cache-Control", "value": "public, max-age=3600" } ] },
+        { "source": "/main.dart.js", "headers": [ { "key": "Cache-Control", "value": "public, max-age=3600" } ] },
+        { "source": "**/*.{js,css,wasm,png,jpg,jpeg,svg,webp}", "headers": [ { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" } ] }
+      ],
+      "rewrites": [ { "source": "**", "destination": "/index.html" } ]
+    },
+    {
+      "site": "viveiroplus",
+      "redirects": [
+        {
+          "source": "/**",
+          "destination": "https://viveiroplusweb.web.app",
+          "type": 301
+        }
+      ]
+    }
+  ],
   "flutter": {
     "platforms": {
       "android": {

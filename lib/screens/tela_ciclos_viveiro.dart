@@ -31,6 +31,10 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   DateTime? _previsaoEncerramento;
   bool _mostrarFormulario = false; // Controla se o formulário está visível
 
+  // Filtros de busca
+  String? _tipoFiltro; // 'viveiro', 'bercario' ou null (todos)
+  String? _codigoFiltro; // código específico ou null (todos)
+
   @override
   void initState() {
     super.initState();
@@ -41,13 +45,22 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   Future<void> _verificarConectividadeFirestore() async {
     try {
       print('Debug: Testando conectividade com Firestore...');
-      final testDoc = await FirebaseFirestore.instance.collection('ciclos').limit(1).get();
-      print('Debug: Conectividade OK! Encontrados ${testDoc.docs.length} documentos');
-      
+      final testDoc = await FirebaseFirestore.instance
+          .collection('ciclos')
+          .limit(1)
+          .get();
+      print(
+        'Debug: Conectividade OK! Encontrados ${testDoc.docs.length} documentos',
+      );
+
       // Teste de listagem de todas as coleções (se possível)
-      final todasColecoes = await FirebaseFirestore.instance.collection('ciclos').get();
-      print('Debug: Total de documentos na coleção ciclos: ${todasColecoes.docs.length}');
-      
+      final todasColecoes = await FirebaseFirestore.instance
+          .collection('ciclos')
+          .get();
+      print(
+        'Debug: Total de documentos na coleção ciclos: ${todasColecoes.docs.length}',
+      );
+
       for (var doc in todasColecoes.docs) {
         print('Debug: Doc ID: ${doc.id}, Dados: ${doc.data()}');
       }
@@ -57,12 +70,26 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   }
 
   Future<void> _carregarDestinos() async {
-    final snap = await FirebaseFirestore.instance.collection('viveiros').get();
     final mapa = <String, String>{};
-    for (final doc in snap.docs) {
+
+    // Carregar viveiros
+    final snapViveiros = await FirebaseFirestore.instance
+        .collection('viveiros')
+        .get();
+    for (final doc in snapViveiros.docs) {
       final data = doc.data();
-      mapa[data['codigo']] = data['nome'];
+      mapa['V-${data['codigo']}'] = '🐟 ${data['nome']} (Viveiro)';
     }
+
+    // Carregar berçários
+    final snapBercarios = await FirebaseFirestore.instance
+        .collection('bercarios')
+        .get();
+    for (final doc in snapBercarios.docs) {
+      final data = doc.data();
+      mapa['B-${data['codigo']}'] = '🦐 ${data['nome']} (Berçário)';
+    }
+
     setState(() => _destinos = mapa);
   }
 
@@ -70,13 +97,24 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _salvando = true);
 
-    if (_previsaoEncerramento != null && _previsaoEncerramento!.isBefore(_dataInicio)) {
+    if (_previsaoEncerramento != null &&
+        _previsaoEncerramento!.isBefore(_dataInicio)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(children: [Icon(Icons.warning, color: Colors.white), SizedBox(width: 8), Text('⚠️ A previsão de encerramento deve ser após a data de início.')]),
+          content: const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.white),
+              SizedBox(width: 8),
+              Text(
+                '⚠️ A previsão de encerramento deve ser após a data de início.',
+              ),
+            ],
+          ),
           backgroundColor: Colors.orange,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       setState(() => _salvando = false);
@@ -86,33 +124,68 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       final nomeUsuario = user != null
-          ? (((await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get()).data()?['nome']) ?? '—')
+          ? (((await FirebaseFirestore.instance
+                        .collection('usuarios')
+                        .doc(user.uid)
+                        .get())
+                    .data()?['nome']) ??
+                '—')
           : '—';
 
+      // Extrair tipo e código do valor selecionado (formato: "V-codigo" ou "B-codigo")
+      final tipo = _codigoSelecionado!.startsWith('V-')
+          ? 'viveiro'
+          : 'bercario';
+      final codigoLimpo = _codigoSelecionado!.substring(
+        2,
+      ); // Remove "V-" ou "B-"
+      final nomeLimpo =
+          _destinos[_codigoSelecionado]
+              ?.replaceAll(RegExp(r'🐟|🦐|\s*\(.*\)'), '')
+              .trim() ??
+          '—';
+
       final dados = {
-        'codigo': _codigoSelecionado,
-        'nome': _destinos[_codigoSelecionado] ?? '—',
+        'codigo': codigoLimpo,
+        'nome': nomeLimpo,
+        'tipo': tipo,
         'dataInicio': Timestamp.fromDate(_dataInicio),
-        'previsaoEncerramento': _previsaoEncerramento != null ? Timestamp.fromDate(_previsaoEncerramento!) : null,
+        'previsaoEncerramento': _previsaoEncerramento != null
+            ? Timestamp.fromDate(_previsaoEncerramento!)
+            : null,
         'quantidadeEstocada': int.parse(_qtdCtrl.text),
-        'pesoInicial': double.tryParse(_pesoCtrl.text.replaceAll(',', '.')) ?? 0.0,
+        'pesoInicial':
+            double.tryParse(_pesoCtrl.text.replaceAll(',', '.')) ?? 0.0,
       };
 
       if (_idEditando != null) {
-        await FirebaseFirestore.instance.collection('ciclos').doc(_idEditando).update(dados);
+        await FirebaseFirestore.instance
+            .collection('ciclos')
+            .doc(_idEditando)
+            .update(dados);
       } else {
         final existe = await FirebaseFirestore.instance
             .collection('ciclos')
-            .where('codigo', isEqualTo: _codigoSelecionado)
+            .where('codigo', isEqualTo: codigoLimpo)
+            .where('tipo', isEqualTo: tipo)
             .where('encerrado', isEqualTo: false)
             .get();
         if (existe.docs.isNotEmpty) {
+          final tipoTexto = tipo == 'viveiro' ? 'viveiro' : 'berçário';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Row(children: [Icon(Icons.info, color: Colors.white), SizedBox(width: 8), Text('ℹ️ Já existe um ciclo ativo para esse viveiro.')]),
+              content: Row(
+                children: [
+                  const Icon(Icons.info, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('ℹ️ Já existe um ciclo ativo para esse $tipoTexto.'),
+                ],
+              ),
               backgroundColor: Colors.orange,
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           );
           setState(() => _salvando = false);
@@ -129,10 +202,18 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(children: [Icon(Icons.check_circle, color: Colors.white), SizedBox(width: 8), Text('✅ Ciclo salvo com sucesso!')]),
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('✅ Ciclo salvo com sucesso!'),
+            ],
+          ),
           backgroundColor: _corPrimaria,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       setState(() {
@@ -151,10 +232,18 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(children: [const Icon(Icons.error, color: Colors.white), const SizedBox(width: 8), Expanded(child: Text('❌ Erro ao salvar: $e'))]),
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('❌ Erro ao salvar: $e')),
+              ],
+            ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -166,10 +255,18 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
     if (ciclo['encerrado'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(children: [Icon(Icons.info, color: Colors.white), SizedBox(width: 8), Text('Ciclo já está encerrado.')]),
+          content: const Row(
+            children: [
+              Icon(Icons.info, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Ciclo já está encerrado.'),
+            ],
+          ),
           backgroundColor: Colors.grey,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       return;
@@ -215,11 +312,18 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.red.withOpacity(0.8), Colors.red.withOpacity(0.6)],
+                          colors: [
+                            Colors.red.withOpacity(0.8),
+                            Colors.red.withOpacity(0.6),
+                          ],
                         ),
                         borderRadius: BorderRadius.circular(15),
                       ),
-                      child: const Icon(Icons.lock, color: Colors.white, size: 24),
+                      child: const Icon(
+                        Icons.lock,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     const Text(
@@ -235,21 +339,33 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                 const SizedBox(height: 24),
                 TextFormField(
                   controller: ctrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   style: const TextStyle(color: Color(0xFF045D3A)),
                   decoration: InputDecoration(
                     labelText: 'Peso Médio Final (g)',
-                    labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.7)),
-                    prefixIcon: const Icon(Icons.scale, color: Color(0xFF049F56)),
+                    labelStyle: TextStyle(
+                      color: const Color(0xFF045D3A).withOpacity(0.7),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.scale,
+                      color: Color(0xFF049F56),
+                    ),
                     filled: true,
                     fillColor: const Color(0xFF049F56).withOpacity(0.1),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: const Color(0xFF049F56).withOpacity(0.3)),
+                      borderSide: BorderSide(
+                        color: const Color(0xFF049F56).withOpacity(0.3),
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
-                      borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF049F56),
+                        width: 2,
+                      ),
                     ),
                   ),
                 ),
@@ -263,7 +379,9 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                            side: BorderSide(
+                              color: Colors.grey.withOpacity(0.3),
+                            ),
                           ),
                         ),
                         child: const Text(
@@ -280,7 +398,10 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                       child: Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [Colors.red.withOpacity(0.8), Colors.red.withOpacity(0.6)],
+                            colors: [
+                              Colors.red.withOpacity(0.8),
+                              Colors.red.withOpacity(0.6),
+                            ],
                           ),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
@@ -293,7 +414,9 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                         ),
                         child: ElevatedButton(
                           onPressed: () {
-                            final val = double.tryParse(ctrl.text.replaceAll(',', '.'));
+                            final val = double.tryParse(
+                              ctrl.text.replaceAll(',', '.'),
+                            );
                             Navigator.pop(context, val);
                           },
                           style: ElevatedButton.styleFrom(
@@ -327,16 +450,24 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
 
     final user = FirebaseAuth.instance.currentUser;
     final nomeUsuario = user != null
-        ? ((await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get()).data()?['nome'] ?? '—')
+        ? ((await FirebaseFirestore.instance
+                      .collection('usuarios')
+                      .doc(user.uid)
+                      .get())
+                  .data()?['nome'] ??
+              '—')
         : '—';
 
     try {
-      await FirebaseFirestore.instance.collection('ciclos').doc(ciclo.id).update({
-        'encerrado': true,
-        'fechadoPor': nomeUsuario,
-        'dataEncerramento': Timestamp.now(),
-        'pesoFinal': pesoFinal,
-      });
+      await FirebaseFirestore.instance
+          .collection('ciclos')
+          .doc(ciclo.id)
+          .update({
+            'encerrado': true,
+            'fechadoPor': nomeUsuario,
+            'dataEncerramento': Timestamp.now(),
+            'pesoFinal': pesoFinal,
+          });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -349,7 +480,9 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
             ),
             backgroundColor: const Color(0xFF049F56),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -366,12 +499,15 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
             ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
     }
   }
+
   @override
   void dispose() {
     _qtdCtrl.dispose();
@@ -382,19 +518,91 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   void _carregarParaEdicao(QueryDocumentSnapshot ciclo) {
     setState(() {
       _idEditando = ciclo.id;
-      _codigoSelecionado = ciclo['codigo'];
+      // Reconstruir o código com prefixo para corresponder ao formato do dropdown
+      final tipo = ciclo['tipo'] ?? 'viveiro';
+      final codigo = ciclo['codigo'];
+      _codigoSelecionado = tipo == 'viveiro' ? 'V-$codigo' : 'B-$codigo';
       _qtdCtrl.text = ciclo['quantidadeEstocada'].toString();
       _pesoCtrl.text = ciclo['pesoInicial'].toString();
       _dataInicio = ciclo['dataInicio'].toDate();
       final dataRaw = ciclo.data();
-      final data = (dataRaw is Map<String, dynamic>) ? dataRaw : <String, dynamic>{};
-      _previsaoEncerramento = data.containsKey('previsaoEncerramento') && data['previsaoEncerramento'] != null
-        ? (data['previsaoEncerramento'] as Timestamp).toDate()
-        : null;
+      final data = (dataRaw is Map<String, dynamic>)
+          ? dataRaw
+          : <String, dynamic>{};
+      _previsaoEncerramento =
+          data.containsKey('previsaoEncerramento') &&
+              data['previsaoEncerramento'] != null
+          ? (data['previsaoEncerramento'] as Timestamp).toDate()
+          : null;
     });
   }
 
   String _formatarData(DateTime dt) => DateFormat('dd/MM/yyyy').format(dt);
+
+  List<DropdownMenuItem<String>> _buildCodigoDropdownItems() {
+    final items = <DropdownMenuItem<String>>[
+      const DropdownMenuItem(value: null, child: Text('Todos')),
+    ];
+
+    // Filtrar códigos baseado no tipo selecionado
+    final codigosFiltrados = <String, String>{};
+
+    if (_tipoFiltro == null) {
+      // Mostrar todos se não há filtro de tipo
+      codigosFiltrados.addAll(_destinos);
+    } else {
+      // Filtrar por tipo
+      final prefixo = _tipoFiltro == 'viveiro' ? 'V-' : 'B-';
+      for (final entry in _destinos.entries) {
+        if (entry.key.startsWith(prefixo)) {
+          codigosFiltrados[entry.key] = entry.value;
+        }
+      }
+    }
+
+    // Ordenar e adicionar aos items
+    final sortedEntries = codigosFiltrados.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    for (final entry in sortedEntries) {
+      items.add(DropdownMenuItem(value: entry.key, child: Text(entry.value)));
+    }
+
+    return items;
+  }
+
+  String _getBuildEmptyMessage() {
+    if (_tipoFiltro != null || _codigoFiltro != null) {
+      return 'Nenhum ciclo encontrado com os filtros aplicados';
+    }
+
+    if (_mostrarApenasAbertos == 1) {
+      return 'Nenhum ciclo ativo encontrado';
+    } else if (_mostrarApenasAbertos == 2) {
+      return 'Nenhum ciclo encerrado encontrado';
+    }
+
+    return 'Crie um novo ciclo para começar';
+  }
+
+  String _getActiveFiltersText() {
+    final filters = <String>[];
+
+    if (_tipoFiltro != null) {
+      filters.add(_tipoFiltro == 'viveiro' ? 'Viveiros' : 'Berçários');
+    }
+
+    if (_codigoFiltro != null) {
+      final nome =
+          _destinos[_codigoFiltro]
+              ?.replaceAll(RegExp(r'🐟|🦐|\s*\(.*\)'), '')
+              .trim() ??
+          _codigoFiltro!;
+      filters.add(nome);
+    }
+
+    return filters.join(', ');
+  }
 
   Widget _buildFilterChip(String label, int value) {
     final isSelected = _mostrarApenasAbertos == value;
@@ -411,18 +619,13 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                   end: Alignment.bottomRight,
                 )
               : LinearGradient(
-                  colors: [
-                    Colors.grey[100]!,
-                    Colors.grey[50]!,
-                  ],
+                  colors: [Colors.grey[100]!, Colors.grey[50]!],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
           borderRadius: BorderRadius.circular(25),
           border: Border.all(
-            color: isSelected 
-                ? const Color(0xFF049F56)
-                : Colors.grey[300]!,
+            color: isSelected ? const Color(0xFF049F56) : Colors.grey[300]!,
             width: 2,
           ),
           boxShadow: isSelected
@@ -465,7 +668,11 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                   color: _corPrimaria.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.calendar_today, size: 20, color: _corPrimaria),
+                child: const Icon(
+                  Icons.calendar_today,
+                  size: 20,
+                  color: _corPrimaria,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -542,9 +749,15 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _previsaoEncerramento != null ? DateFormat('dd/MM/yyyy').format(_previsaoEncerramento!) : 'Não definida',
+                      _previsaoEncerramento != null
+                          ? DateFormat(
+                              'dd/MM/yyyy',
+                            ).format(_previsaoEncerramento!)
+                          : 'Não definida',
                       style: TextStyle(
-                        color: _previsaoEncerramento != null ? _corPrimariaEscura : _corPrimariaEscura.withOpacity(0.6),
+                        color: _previsaoEncerramento != null
+                            ? _corPrimariaEscura
+                            : _corPrimariaEscura.withOpacity(0.6),
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -583,20 +796,32 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
     final data = ciclo['dataInicio'].toDate();
     final encerrado = ciclo['encerrado'] == true;
     final dataRaw = ciclo.data();
-    final dataMap = (dataRaw != null && dataRaw is Map<String, dynamic>) ? dataRaw : <String, dynamic>{};
-    final dataEncerramento = (dataMap['dataEncerramento'] != null && dataMap['dataEncerramento'] is Timestamp)
+    final dataMap = (dataRaw != null && dataRaw is Map<String, dynamic>)
+        ? dataRaw
+        : <String, dynamic>{};
+    final dataEncerramento =
+        (dataMap['dataEncerramento'] != null &&
+            dataMap['dataEncerramento'] is Timestamp)
         ? (dataMap['dataEncerramento'] as Timestamp).toDate()
         : null;
-    final previsaoEncerramento = (dataMap['previsaoEncerramento'] != null && dataMap['previsaoEncerramento'] is Timestamp)
+    final previsaoEncerramento =
+        (dataMap['previsaoEncerramento'] != null &&
+            dataMap['previsaoEncerramento'] is Timestamp)
         ? (dataMap['previsaoEncerramento'] as Timestamp).toDate()
         : null;
-    final abertoPor = (dataMap['abertoPor'] != null) ? dataMap['abertoPor'] : '—';
-    final fechadoPor = (dataMap['fechadoPor'] != null) ? dataMap['fechadoPor'] : '';
-    final pesoFinal = (dataMap['pesoFinal'] != null) ? dataMap['pesoFinal'] : null;
+    final abertoPor = (dataMap['abertoPor'] != null)
+        ? dataMap['abertoPor']
+        : '—';
+    final fechadoPor = (dataMap['fechadoPor'] != null)
+        ? dataMap['fechadoPor']
+        : '';
+    final pesoFinal = (dataMap['pesoFinal'] != null)
+        ? dataMap['pesoFinal']
+        : null;
 
     final pesoInicial = (ciclo['pesoInicial'] ?? 0) as num;
     // Cálculo duração
-    int duracaoDias; 
+    int duracaoDias;
     if (encerrado && dataEncerramento != null) {
       duracaoDias = dataEncerramento.difference(data).inDays;
     } else {
@@ -612,13 +837,11 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
         final resultado = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => TelaDetalhesCiclo(
-              cicloId: ciclo.id,
-              dadosCiclo: dataMap,
-            ),
+            builder: (context) =>
+                TelaDetalhesCiclo(cicloId: ciclo.id, dadosCiclo: dataMap),
           ),
         );
-        
+
         // Se houve mudança, atualizar a tela
         if (resultado == true) {
           setState(() {});
@@ -679,12 +902,42 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Text(
-                          'Código: ${ciclo['codigo']}',
-                          style: TextStyle(
-                            color: const Color(0xFF045D3A).withOpacity(0.7),
-                            fontSize: 14,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: (ciclo['tipo'] ?? 'viveiro') == 'viveiro'
+                                    ? Colors.blue.withOpacity(0.2)
+                                    : Colors.orange.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                (ciclo['tipo'] ?? 'viveiro') == 'viveiro'
+                                    ? '🐟 Viveiro'
+                                    : '🦐 Berçário',
+                                style: TextStyle(
+                                  color:
+                                      (ciclo['tipo'] ?? 'viveiro') == 'viveiro'
+                                      ? Colors.blue
+                                      : Colors.orange,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Código: ${ciclo['codigo']}',
+                              style: TextStyle(
+                                color: const Color(0xFF045D3A).withOpacity(0.7),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -692,20 +945,27 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: encerrado 
+                          color: encerrado
                               ? Colors.grey.withOpacity(0.3)
                               : const Color(0xFF049F56).withOpacity(0.3),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: encerrado ? Colors.grey : const Color(0xFF049F56),
+                            color: encerrado
+                                ? Colors.grey
+                                : const Color(0xFF049F56),
                           ),
                         ),
                         child: Text(
                           encerrado ? '🔒 Encerrado' : '🔄 Ativo',
                           style: TextStyle(
-                            color: encerrado ? Colors.grey[300] : const Color(0xFF049F56),
+                            color: encerrado
+                                ? Colors.grey[300]
+                                : const Color(0xFF049F56),
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -722,20 +982,29 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                 ],
               ),
               const SizedBox(height: 20),
-              
+
               // Informações principais - resumidas
               _buildInfoRow('📅 Início', _formatarData(data)),
               if (previsaoEncerramento != null)
-                _buildInfoRow('🎯 Previsão', _formatarData(previsaoEncerramento)),
+                _buildInfoRow(
+                  '🎯 Previsão',
+                  _formatarData(previsaoEncerramento),
+                ),
               if (encerrado && dataEncerramento != null)
                 _buildInfoRow('🏁 Encerrado', _formatarData(dataEncerramento)),
-              _buildInfoRow('🦐 Estocados', '${ciclo['quantidadeEstocada']} pós-larvas'),
+              _buildInfoRow(
+                '🦐 Estocados',
+                '${ciclo['quantidadeEstocada']} pós-larvas',
+              ),
               _buildInfoRow('⏱️ Duração', '$duracaoDias dias'),
               if (ganhoPeso != null)
-                _buildInfoRow('📈 Ganho Médio', '${ganhoPeso.toString().replaceAll('.', ',')} g'),
-              
+                _buildInfoRow(
+                  '📈 Ganho Médio',
+                  '${ganhoPeso.toString().replaceAll('.', ',')} g',
+                ),
+
               const SizedBox(height: 16),
-              
+
               // Responsáveis
               Container(
                 padding: const EdgeInsets.all(12),
@@ -752,21 +1021,17 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                   ],
                 ),
               ),
-              
+
               if (!encerrado) ...[
                 const SizedBox(height: 20),
                 // Ações - agora com botões mais simples
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildActionButton(
-                      '✏️ Editar',
-                      Colors.blue,
-                      () {
-                        _carregarParaEdicao(ciclo);
-                        setState(() => _mostrarFormulario = true);
-                      },
-                    ),
+                    _buildActionButton('✏️ Editar', Colors.blue, () {
+                      _carregarParaEdicao(ciclo);
+                      setState(() => _mostrarFormulario = true);
+                    }),
                     _buildActionButton(
                       '➕ Povoar',
                       const Color(0xFF049F56),
@@ -827,10 +1092,7 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              color.withOpacity(0.8),
-              color.withOpacity(0.6),
-            ],
+            colors: [color.withOpacity(0.8), color.withOpacity(0.6)],
           ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.3)),
@@ -857,7 +1119,7 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Ciclos por Viveiro',
+      title: 'Gestão de Ciclos',
       body: DegradeFundo(
         child: SingleChildScrollView(
           child: Padding(
@@ -890,8 +1152,192 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                // Filtros por tipo e código
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFF049F56).withOpacity(0.2),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.filter_list, color: Color(0xFF049F56)),
+                          SizedBox(width: 8),
+                          Text(
+                            'Filtros',
+                            style: TextStyle(
+                              color: Color(0xFF045D3A),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Column(
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: _tipoFiltro,
+                            decoration: InputDecoration(
+                              labelText: 'Tipo',
+                              prefixIcon: const Icon(
+                                Icons.category,
+                                color: Color(0xFF049F56),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF049F56),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: null,
+                                child: Text('Todos'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'viveiro',
+                                child: Text('🐟 Viveiros'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'bercario',
+                                child: Text('🦐 Berçários'),
+                              ),
+                            ],
+                            onChanged: (value) => setState(() {
+                              _tipoFiltro = value;
+                              _codigoFiltro =
+                                  null; // Reset código quando mudar tipo
+                            }),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: _codigoFiltro,
+                            decoration: InputDecoration(
+                              labelText: 'Código',
+                              prefixIcon: const Icon(
+                                Icons.water_damage,
+                                color: Color(0xFF049F56),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF049F56),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            items: _buildCodigoDropdownItems(),
+                            onChanged: (value) =>
+                                setState(() => _codigoFiltro = value),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Indicador de filtros ativos
+                if (_tipoFiltro != null || _codigoFiltro != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF049F56).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF049F56).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.filter_alt,
+                          color: Color(0xFF049F56),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Filtros: ${_getActiveFiltersText()}',
+                          style: const TextStyle(
+                            color: Color(0xFF049F56),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => setState(() {
+                            _tipoFiltro = null;
+                            _codigoFiltro = null;
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF049F56),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 20),
-                
+
                 // Botão para mostrar/esconder formulário
                 Container(
                   width: double.infinity,
@@ -921,12 +1367,18 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                               ),
                               borderRadius: BorderRadius.circular(15),
                             ),
-                            child: const Icon(Icons.add_circle, color: Colors.white, size: 24),
+                            child: const Icon(
+                              Icons.add_circle,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Text(
-                              _mostrarFormulario ? '🆕 Novo Ciclo' : '🆕 Criar Novo Ciclo',
+                              _mostrarFormulario
+                                  ? '🆕 Novo Ciclo'
+                                  : '🆕 Criar Novo Ciclo',
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -936,7 +1388,9 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                           ),
                           IconButton(
                             icon: Icon(
-                              _mostrarFormulario ? Icons.expand_less : Icons.expand_more,
+                              _mostrarFormulario
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
                               color: const Color(0xFF049F56),
                               size: 28,
                             ),
@@ -957,7 +1411,7 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                           ),
                         ],
                       ),
-                      
+
                       // Formulário (aparece apenas quando _mostrarFormulario for true)
                       if (_mostrarFormulario) ...[
                         const SizedBox(height: 20),
@@ -967,89 +1421,151 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               DropdownButtonFormField<String>(
-                                value: _codigoSelecionado,
+                                initialValue: _codigoSelecionado,
                                 items: () {
-                                  final sortedEntries = _destinos.entries.toList()
-                                    ..sort((a, b) => a.key.compareTo(b.key));
+                                  final sortedEntries =
+                                      _destinos.entries.toList()..sort(
+                                        (a, b) => a.key.compareTo(b.key),
+                                      );
                                   return sortedEntries
-                                      .map((e) => DropdownMenuItem(
-                                            value: e.key,
-                                            child: Text('${e.value} (cód: ${e.key})'),
-                                          ))
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e.key,
+                                          child: Text(
+                                            '${e.value} (cód: ${e.key})',
+                                          ),
+                                        ),
+                                      )
                                       .toList();
                                 }(),
-                                onChanged: (val) => setState(() => _codigoSelecionado = val),
+                                onChanged: (val) =>
+                                    setState(() => _codigoSelecionado = val),
                                 decoration: InputDecoration(
-                                  labelText: 'Viveiro',
-                                  labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.8)),
-                                  prefixIcon: const Icon(Icons.water_damage, color: Color(0xFF049F56)),
+                                  labelText: 'Viveiro ou Berçário',
+                                  labelStyle: TextStyle(
+                                    color: const Color(
+                                      0xFF045D3A,
+                                    ).withOpacity(0.8),
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.water_damage,
+                                    color: Color(0xFF049F56),
+                                  ),
                                   filled: true,
                                   fillColor: Colors.grey[50],
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey[300]!,
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey[300]!,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(15),
-                                    borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF049F56),
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
                                 dropdownColor: Colors.white,
-                                style: const TextStyle(color: Color(0xFF045D3A)),
-                                validator: (v) => v == null ? 'Selecione o viveiro' : null,
+                                style: const TextStyle(
+                                  color: Color(0xFF045D3A),
+                                ),
+                                validator: (v) => v == null
+                                    ? 'Selecione o viveiro ou berçário'
+                                    : null,
                               ),
                               const SizedBox(height: 16),
                               TextFormField(
                                 controller: _qtdCtrl,
                                 keyboardType: TextInputType.number,
-                                style: const TextStyle(color: Color(0xFF045D3A)),
+                                style: const TextStyle(
+                                  color: Color(0xFF045D3A),
+                                ),
                                 decoration: InputDecoration(
                                   labelText: 'Quantidade Estocada (pós-larvas)',
-                                  labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.8)),
-                                  prefixIcon: const Icon(Icons.numbers, color: Color(0xFF049F56)),
+                                  labelStyle: TextStyle(
+                                    color: const Color(
+                                      0xFF045D3A,
+                                    ).withOpacity(0.8),
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.numbers,
+                                    color: Color(0xFF049F56),
+                                  ),
                                   filled: true,
                                   fillColor: Colors.grey[50],
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey[300]!,
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey[300]!,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(15),
-                                    borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF049F56),
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
-                                validator: (v) => v == null || v.isEmpty ? 'Informe a quantidade' : null,
+                                validator: (v) => v == null || v.isEmpty
+                                    ? 'Informe a quantidade'
+                                    : null,
                               ),
                               const SizedBox(height: 16),
                               TextFormField(
                                 controller: _pesoCtrl,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                style: const TextStyle(color: Color(0xFF045D3A)),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                style: const TextStyle(
+                                  color: Color(0xFF045D3A),
+                                ),
                                 decoration: InputDecoration(
                                   labelText: 'Peso Médio Inicial (g)',
-                                  labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.8)),
-                                  prefixIcon: const Icon(Icons.scale, color: Color(0xFF049F56)),
+                                  labelStyle: TextStyle(
+                                    color: const Color(
+                                      0xFF045D3A,
+                                    ).withOpacity(0.8),
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.scale,
+                                    color: Color(0xFF049F56),
+                                  ),
                                   filled: true,
                                   fillColor: Colors.grey[50],
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey[300]!,
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey[300]!,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(15),
-                                    borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF049F56),
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1060,49 +1576,72 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                                 child: Container(
                                   decoration: BoxDecoration(
                                     gradient: const LinearGradient(
-                                      colors: [Color(0xFF045D3A), Color(0xFF049F56)],
+                                      colors: [
+                                        Color(0xFF045D3A),
+                                        Color(0xFF049F56),
+                                      ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                     ),
                                     borderRadius: BorderRadius.circular(15),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: const Color(0xFF045D3A).withOpacity(0.4),
+                                        color: const Color(
+                                          0xFF045D3A,
+                                        ).withOpacity(0.4),
                                         blurRadius: 8,
                                         offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
                                   child: ElevatedButton.icon(
-                                    icon: _salvando 
+                                    icon: _salvando
                                         ? const SizedBox(
                                             width: 16,
                                             height: 16,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Colors.white,
+                                                  ),
                                             ),
                                           )
-                                        : const Icon(Icons.save, color: Colors.white),
+                                        : const Icon(
+                                            Icons.save,
+                                            color: Colors.white,
+                                          ),
                                     label: Text(
-                                      _salvando ? 'Salvando...' : (_idEditando != null ? 'Atualizar Ciclo' : 'Salvar Ciclo'),
+                                      _salvando
+                                          ? 'Salvando...'
+                                          : (_idEditando != null
+                                                ? 'Atualizar Ciclo'
+                                                : 'Salvar Ciclo'),
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w600,
                                         fontSize: 16,
                                       ),
                                     ),
-                                    onPressed: _salvando ? null : () async {
-                                      await _salvarCiclo();
-                                      if (_idEditando == null) {
-                                        // Se salvou um novo ciclo, fechar o formulário
-                                        setState(() => _mostrarFormulario = false);
-                                      }
-                                    },
+                                    onPressed: _salvando
+                                        ? null
+                                        : () async {
+                                            await _salvarCiclo();
+                                            if (_idEditando == null) {
+                                              // Se salvou um novo ciclo, fechar o formulário
+                                              setState(
+                                                () =>
+                                                    _mostrarFormulario = false,
+                                              );
+                                            }
+                                          },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.transparent,
                                       shadowColor: Colors.transparent,
-                                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 32,
+                                        vertical: 16,
+                                      ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(15),
                                       ),
@@ -1118,7 +1657,7 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Seção de ciclos registrados modernizada
                 Container(
                   width: double.infinity,
@@ -1146,7 +1685,11 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                           ),
                           borderRadius: BorderRadius.circular(15),
                         ),
-                        child: const Icon(Icons.history, color: Colors.white, size: 24),
+                        child: const Icon(
+                          Icons.history,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
                       const SizedBox(width: 16),
                       const Text(
@@ -1161,12 +1704,14 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Lista de ciclos com altura fixa para permitir scroll interno
-                Container(
+                SizedBox(
                   height: 500, // Aumentada a altura para melhor visualização
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('ciclos').snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('ciclos')
+                        .snapshots(),
                     builder: (context, snapshot) {
                       // Verificar se há erro
                       if (snapshot.hasError) {
@@ -1176,14 +1721,20 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                             decoration: BoxDecoration(
                               color: Colors.red.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(15),
-                              border: Border.all(color: Colors.red.withOpacity(0.3)),
+                              border: Border.all(
+                                color: Colors.red.withOpacity(0.3),
+                              ),
                             ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.error, color: Colors.red, size: 48),
+                                const Icon(
+                                  Icons.error,
+                                  color: Colors.red,
+                                  size: 48,
+                                ),
                                 const SizedBox(height: 16),
-                                Text(
+                                const Text(
                                   'Erro ao carregar ciclos',
                                   style: TextStyle(
                                     color: Colors.red,
@@ -1194,7 +1745,10 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                                 const SizedBox(height: 8),
                                 Text(
                                   snapshot.error.toString(),
-                                  style: TextStyle(color: Colors.red.shade700, fontSize: 14),
+                                  style: TextStyle(
+                                    color: Colors.red.shade700,
+                                    fontSize: 14,
+                                  ),
                                   textAlign: TextAlign.center,
                                 ),
                                 const SizedBox(height: 16),
@@ -1213,15 +1767,18 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                       }
 
                       // Verificar estado de carregamento
-                      if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
-                        return Center(
+                      if (snapshot.connectionState == ConnectionState.waiting ||
+                          !snapshot.hasData) {
+                        return const Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF049F56)),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF049F56),
+                                ),
                               ),
-                              const SizedBox(height: 16),
+                              SizedBox(height: 16),
                               Text(
                                 'Carregando ciclos...',
                                 style: TextStyle(color: Color(0xFF045D3A)),
@@ -1230,27 +1787,53 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                           ),
                         );
                       }
-                      
+
                       // Filtrar os dados na aplicação
                       List<QueryDocumentSnapshot> docs = snapshot.data!.docs;
-                      
+
                       // Aplicar filtros na aplicação
                       if (_mostrarApenasAbertos == 1) {
-                        docs = docs.where((doc) => doc['encerrado'] == false).toList();
+                        docs = docs
+                            .where((doc) => doc['encerrado'] == false)
+                            .toList();
                       } else if (_mostrarApenasAbertos == 2) {
-                        docs = docs.where((doc) => doc['encerrado'] == true).toList();
+                        docs = docs
+                            .where((doc) => doc['encerrado'] == true)
+                            .toList();
                       }
-                      
+
+                      // Filtrar por tipo (viveiro/berçário)
+                      if (_tipoFiltro != null) {
+                        docs = docs.where((doc) {
+                          final tipo =
+                              doc['tipo'] ??
+                              'viveiro'; // Padrão para ciclos antigos
+                          return tipo == _tipoFiltro;
+                        }).toList();
+                      }
+
+                      // Filtrar por código específico
+                      if (_codigoFiltro != null) {
+                        final codigoLimpo = _codigoFiltro!.substring(
+                          2,
+                        ); // Remove "V-" ou "B-"
+                        docs = docs
+                            .where((doc) => doc['codigo'] == codigoLimpo)
+                            .toList();
+                      }
+
                       // Filtrar apenas viveiros e berçários cadastrados
-                      docs = docs.where((doc) => _destinos.containsKey(doc['codigo'])).toList();
-                      
+                      docs = docs
+                          .where((doc) => _destinos.containsKey(doc['codigo']))
+                          .toList();
+
                       // Ordenar por data de início (mais recente primeiro)
                       docs.sort((a, b) {
                         final dateA = (a['dataInicio'] as Timestamp).toDate();
                         final dateB = (b['dataInicio'] as Timestamp).toDate();
                         return dateB.compareTo(dateA);
                       });
-                      
+
                       if (docs.isEmpty) {
                         return Center(
                           child: Container(
@@ -1272,7 +1855,9 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                                 Icon(
                                   Icons.water_damage_outlined,
                                   size: 64,
-                                  color: const Color(0xFF049F56).withOpacity(0.6),
+                                  color: const Color(
+                                    0xFF049F56,
+                                  ).withOpacity(0.6),
                                 ),
                                 const SizedBox(height: 16),
                                 const Text(
@@ -1285,13 +1870,11 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  _mostrarApenasAbertos == 1 
-                                      ? 'Nenhum ciclo ativo encontrado'
-                                      : _mostrarApenasAbertos == 2 
-                                          ? 'Nenhum ciclo encerrado encontrado'
-                                          : 'Crie um novo ciclo para começar',
+                                  _getBuildEmptyMessage(),
                                   style: TextStyle(
-                                    color: const Color(0xFF045D3A).withOpacity(0.6),
+                                    color: const Color(
+                                      0xFF045D3A,
+                                    ).withOpacity(0.6),
                                     fontSize: 14,
                                   ),
                                 ),
@@ -1300,10 +1883,11 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                           ),
                         );
                       }
-                      
+
                       return ListView.builder(
                         itemCount: docs.length,
-                        itemBuilder: (context, index) => _buildCicloCard(docs[index]),
+                        itemBuilder: (context, index) =>
+                            _buildCicloCard(docs[index]),
                       );
                     },
                   ),
@@ -1317,14 +1901,22 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
     ); // Fecha AppScaffold
   }
 
-  void _abrirRegistroPovoamento(BuildContext context, QueryDocumentSnapshot ciclo) async {
+  void _abrirRegistroPovoamento(
+    BuildContext context,
+    QueryDocumentSnapshot ciclo,
+  ) async {
     final TextEditingController qtdCtrl = TextEditingController();
     final TextEditingController obsCtrl = TextEditingController();
     final user = FirebaseAuth.instance.currentUser;
     final nomeUsuario = user != null
-        ? (((await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get()).data()?['nome']) ?? '—')
+        ? (((await FirebaseFirestore.instance
+                      .collection('usuarios')
+                      .doc(user.uid)
+                      .get())
+                  .data()?['nome']) ??
+              '—')
         : '—';
-    
+
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -1368,7 +1960,11 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                         ),
                         borderRadius: BorderRadius.circular(15),
                       ),
-                      child: const Icon(Icons.add_circle, color: Colors.white, size: 24),
+                      child: const Icon(
+                        Icons.add_circle,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     const Flexible(
@@ -1389,7 +1985,9 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF049F56).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: const Color(0xFF049F56).withOpacity(0.3)),
+                    border: Border.all(
+                      color: const Color(0xFF049F56).withOpacity(0.3),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -1397,7 +1995,7 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Viveiro: ${ciclo['nome']} (${ciclo['codigo']})',
+                          'Local: ${ciclo['nome']} (${ciclo['codigo']})',
                           style: const TextStyle(
                             color: Color(0xFF045D3A),
                             fontWeight: FontWeight.w600,
@@ -1414,17 +2012,27 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                   style: const TextStyle(color: Color(0xFF045D3A)),
                   decoration: InputDecoration(
                     labelText: 'Quantidade adicionada',
-                    labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.7)),
-                    prefixIcon: const Icon(Icons.numbers, color: Color(0xFF049F56)),
+                    labelStyle: TextStyle(
+                      color: const Color(0xFF045D3A).withOpacity(0.7),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.numbers,
+                      color: Color(0xFF049F56),
+                    ),
                     filled: true,
                     fillColor: const Color(0xFF049F56).withOpacity(0.1),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: const Color(0xFF049F56).withOpacity(0.3)),
+                      borderSide: BorderSide(
+                        color: const Color(0xFF049F56).withOpacity(0.3),
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
-                      borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF049F56),
+                        width: 2,
+                      ),
                     ),
                   ),
                 ),
@@ -1434,17 +2042,27 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                   style: const TextStyle(color: Color(0xFF045D3A)),
                   decoration: InputDecoration(
                     labelText: 'Observações',
-                    labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.7)),
-                    prefixIcon: const Icon(Icons.notes, color: Color(0xFF049F56)),
+                    labelStyle: TextStyle(
+                      color: const Color(0xFF045D3A).withOpacity(0.7),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.notes,
+                      color: Color(0xFF049F56),
+                    ),
                     filled: true,
                     fillColor: const Color(0xFF049F56).withOpacity(0.1),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: const Color(0xFF049F56).withOpacity(0.3)),
+                      borderSide: BorderSide(
+                        color: const Color(0xFF049F56).withOpacity(0.3),
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
-                      borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF049F56),
+                        width: 2,
+                      ),
                     ),
                   ),
                   maxLines: 2,
@@ -1459,7 +2077,9 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                            side: BorderSide(
+                              color: Colors.grey.withOpacity(0.3),
+                            ),
                           ),
                         ),
                         child: const Text(
@@ -1509,31 +2129,43 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                               );
                               return;
                             }
-                            
+
                             try {
-                              await FirebaseFirestore.instance.collection('povoamentos').add({
-                                'cicloId': ciclo.id,
-                                'codigo': ciclo['codigo'],
-                                'nome': ciclo['nome'],
-                                'quantidade': qtd,
-                                'responsavel': nomeUsuario,
-                                'observacoes': obsCtrl.text.trim(),
-                                'dataRegistro': Timestamp.now(),
-                              });
+                              await FirebaseFirestore.instance
+                                  .collection('povoamentos')
+                                  .add({
+                                    'cicloId': ciclo.id,
+                                    'codigo': ciclo['codigo'],
+                                    'nome': ciclo['nome'],
+                                    'quantidade': qtd,
+                                    'responsavel': nomeUsuario,
+                                    'observacoes': obsCtrl.text.trim(),
+                                    'dataRegistro': Timestamp.now(),
+                                  });
                               // Atualiza quantidadeEstocada somando novo povoamento
-                              await FirebaseFirestore.instance.collection('ciclos').doc(ciclo.id).update({
-                                'quantidadeEstocada': FieldValue.increment(qtd),
-                              });
-                              
+                              await FirebaseFirestore.instance
+                                  .collection('ciclos')
+                                  .doc(ciclo.id)
+                                  .update({
+                                    'quantidadeEstocada': FieldValue.increment(
+                                      qtd,
+                                    ),
+                                  });
+
                               if (context.mounted) Navigator.pop(context);
-                              
+
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: const Row(
                                     children: [
-                                      Icon(Icons.check_circle, color: Colors.white),
+                                      Icon(
+                                        Icons.check_circle,
+                                        color: Colors.white,
+                                      ),
                                       SizedBox(width: 8),
-                                      Text('✅ Povoamento registrado com sucesso!'),
+                                      Text(
+                                        '✅ Povoamento registrado com sucesso!',
+                                      ),
                                     ],
                                   ),
                                   backgroundColor: const Color(0xFF049F56),
@@ -1548,7 +2180,10 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                                 SnackBar(
                                   content: Row(
                                     children: [
-                                      const Icon(Icons.error, color: Colors.white),
+                                      const Icon(
+                                        Icons.error,
+                                        color: Colors.white,
+                                      ),
                                       const SizedBox(width: 8),
                                       Expanded(child: Text('❌ Erro: $e')),
                                     ],

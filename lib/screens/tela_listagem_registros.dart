@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/degrade_fundo.dart';
+import '../widgets/responsive_center.dart';
 import 'tela_analise_agua.dart' as analise;
 import '../helpers/confirmation_helper.dart';
 import 'tela_editar_registro_analise.dart';
@@ -39,7 +40,10 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
   Future<void> _carregarFuncaoUsuario() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final snap = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
+      final snap = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .get();
       setState(() {
         _funcaoUsuario = snap.data()?['funcao'] ?? '';
       });
@@ -49,7 +53,9 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
   Future<void> _carregarDestinos() async {
     try {
       // Carregar viveiros
-      final snapshotViveiros = await FirebaseFirestore.instance.collection('viveiros').get();
+      final snapshotViveiros = await FirebaseFirestore.instance
+          .collection('viveiros')
+          .get();
       final viveiros = <String, String>{};
       for (final doc in snapshotViveiros.docs) {
         final data = doc.data();
@@ -59,9 +65,11 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
           viveiros[codigo] = nome;
         }
       }
-      
+
       // Carregar berçários
-      final snapshotBercarios = await FirebaseFirestore.instance.collection('bercarios').get();
+      final snapshotBercarios = await FirebaseFirestore.instance
+          .collection('bercarios')
+          .get();
       final bercarios = <String, String>{};
       for (final doc in snapshotBercarios.docs) {
         final data = doc.data();
@@ -71,12 +79,12 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
           bercarios[codigo] = nome;
         }
       }
-      
+
       setState(() {
         _viveiros = viveiros;
         _bercarios = bercarios;
       });
-      
+
       print('DEBUG LISTAGEM: Viveiros carregados: $_viveiros');
       print('DEBUG LISTAGEM: Berçários carregados: $_bercarios');
     } catch (e) {
@@ -126,11 +134,14 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
       );
 
       // Executa a exclusão
-      await FirebaseFirestore.instance.collection('registros_diarios').doc(id).delete();
-      
+      await FirebaseFirestore.instance
+          .collection('registros_diarios')
+          .doc(id)
+          .delete();
+
       if (!mounted) return;
       Navigator.pop(context); // Remove o loading
-      
+
       // Mostra sucesso
       await ConfirmationHelper.showSuccess(
         context: context,
@@ -140,7 +151,7 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // Remove o loading se ainda estiver ativo
-      
+
       // Mostra erro
       await ConfirmationHelper.showError(
         context: context,
@@ -153,22 +164,77 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
 
   void _mostrarDetalhes(Map<String, dynamic> data) {
     final dt = (data['dataHora'] as Timestamp).toDate();
-    
+
     // Lista de parâmetros com suas configurações
     final parametrosConfig = [
-      {'label': 'pH da Água', 'campo': 'ph', 'unidade': '', 'ideal': '7.0 – 9.0'},
-      {'label': 'Oxigênio Dissolvido', 'campo': 'oxigenio', 'unidade': 'mg/L', 'ideal': '4.0 – 14.0'},
-      {'label': 'Temperatura (°C)', 'campo': 'temperatura', 'unidade': '°C', 'ideal': '28.0 – 32.0'},
-      {'label': 'Turbidez (NTU)', 'campo': 'turbidez', 'unidade': 'NTU', 'ideal': '40.0 – 60.0'},
-      {'label': 'Porcentagem de Saturação (%)', 'campo': 'saturacao_percentual', 'unidade': '%', 'ideal': '80 – 120'},
-      {'label': 'Saturação de O2 Dissolvido (%)', 'campo': 'saturacao_oxigenio', 'unidade': '%', 'ideal': '80 – 120'},
-      {'label': 'Salinidade (ppt)', 'campo': 'salinidade', 'unidade': 'ppt', 'ideal': '30.0 – 45.0'},
-      {'label': 'Cálcio (mg/L)', 'campo': 'calcio', 'unidade': 'mg/L', 'ideal': '100 – 300'},
-      {'label': 'Nitrito (mg/L)', 'campo': 'nitrito', 'unidade': 'mg/L', 'ideal': '0.0 – 0.5'},
-      {'label': 'Amônia (mg/L)', 'campo': 'amonia', 'unidade': 'mg/L', 'ideal': '0.0 – 1.5'},
+      {
+        'label': 'pH da Água',
+        'campo': 'ph',
+        'unidade': '',
+        'ideal': '7.0 – 9.0',
+      },
+      {
+        'label': 'Oxigênio Dissolvido',
+        'campo': 'oxigenio',
+        'unidade': 'mg/L',
+        'ideal': '4.0 – 14.0',
+      },
+      {
+        'label': 'Temperatura (°C)',
+        'campo': 'temperatura',
+        'unidade': '°C',
+        'ideal': '26.0 – 32.0',
+      },
+      {
+        'label': 'Turbidez (NTU)',
+        'campo': 'turbidez',
+        'unidade': 'NTU',
+        'ideal': '40.0 – 60.0',
+      },
+      {
+        'label': 'Porcentagem de Saturação (%)',
+        'campo': 'saturacao_percentual',
+        'unidade': '%',
+        'ideal': '80 – 120',
+      },
+      {
+        'label': 'Saturação de O2 Dissolvido (%)',
+        'campo': 'saturacao_oxigenio',
+        'unidade': '%',
+        'ideal': '80 – 120',
+      },
+      {
+        'label': 'Salinidade (ppt)',
+        'campo': 'salinidade',
+        'unidade': 'ppt',
+        'ideal': '30.0 – 45.0',
+      },
+      {
+        'label': 'Cálcio (mg/L)',
+        'campo': 'calcio',
+        'unidade': 'mg/L',
+        'ideal': '100 – 300',
+      },
+      {
+        'label': 'Nitrito (mg/L)',
+        'campo': 'nitrito',
+        'unidade': 'mg/L',
+        'ideal': '0.0 – 0.5',
+      },
+      {
+        'label': 'Amônia (mg/L)',
+        'campo': 'amonia',
+        'unidade': 'mg/L',
+        'ideal': '0.0 – 1.5',
+      },
     ];
-    
-    Widget paramDetalhe(String label, String campo, String unidade, {String? ideal}) {
+
+    Widget paramDetalhe(
+      String label,
+      String campo,
+      String unidade, {
+      String? ideal,
+    }) {
       final valor = data[campo];
       final fora = _foraDoIdeal(campo, valor);
       return Container(
@@ -182,35 +248,51 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             if (fora)
-              const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 18),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 18,
+              ),
             if (!fora)
               const Icon(Icons.check_circle, color: Colors.teal, size: 18),
             const SizedBox(width: 6),
-            Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
             Text(
-              valor.toString(),
-              style: TextStyle(
-                color: fora ? Colors.red : Colors.teal.shade900,
-                fontWeight: fora ? FontWeight.bold : FontWeight.w600,
+              '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Expanded(
+              child: Text(
+                valor.toString(),
+                style: TextStyle(
+                  color: fora ? Colors.red : Colors.teal.shade900,
+                  fontWeight: fora ? FontWeight.bold : FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             if (unidade.isNotEmpty) Text(' $unidade'),
             if (fora && ideal != null)
               Padding(
                 padding: const EdgeInsets.only(left: 6),
-                child: Text('(Ideal: $ideal)', style: const TextStyle(color: Colors.teal, fontSize: 12)),
+                child: Text(
+                  '(Ideal: $ideal)',
+                  style: const TextStyle(color: Colors.teal, fontSize: 12),
+                ),
               ),
           ],
         ),
       );
     }
-    
+
     // Filtra apenas os parâmetros que foram preenchidos (não nulos e não vazios)
     final parametrosPreenchidos = parametrosConfig.where((param) {
       final valor = data[param['campo']];
-      return valor != null && valor.toString().isNotEmpty && valor.toString() != '0' && valor.toString() != '0.0';
+      return valor != null &&
+          valor.toString().isNotEmpty &&
+          valor.toString() != '0' &&
+          valor.toString() != '0.0';
     }).toList();
-    
+
     final editadoPor = data['editadoPor'];
     final editadoEm = data['editadoEm'];
     showDialog(
@@ -219,7 +301,9 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Container(
           padding: const EdgeInsets.all(0),
-          constraints: const BoxConstraints(maxHeight: 600), // Limita a altura máxima
+          constraints: const BoxConstraints(
+            maxHeight: 600,
+          ), // Limita a altura máxima
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -234,28 +318,47 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                   children: [
                     Icon(Icons.analytics, color: Colors.teal, size: 38),
                     SizedBox(height: 6),
-                    Text('Detalhes do Registro', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    Text(
+                      'Detalhes do Registro',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Expanded( // Permite que o conteúdo expand e seja scrollable
-                child: SingleChildScrollView( // Adiciona scroll quando necessário
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              Expanded(
+                // Permite que o conteúdo expand e seja scrollable
+                child: SingleChildScrollView(
+                  // Adiciona scroll quando necessário
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Destino: ${data['nome'] ?? '—'}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      Text('Código: ${data['codigo'] ?? '—'}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text(
+                        'Destino: ${data['nome'] ?? '—'}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        'Código: ${data['codigo'] ?? '—'}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                       const SizedBox(height: 10),
-                      
+
                       // Mostrar apenas os parâmetros que foram preenchidos
                       if (parametrosPreenchidos.isNotEmpty)
-                        ...parametrosPreenchidos.map((param) => paramDetalhe(
-                          param['label'] as String,
-                          param['campo'] as String,
-                          param['unidade'] as String,
-                          ideal: param['ideal'] as String?,
-                        ))
+                        ...parametrosPreenchidos.map(
+                          (param) => paramDetalhe(
+                            param['label'] as String,
+                            param['campo'] as String,
+                            param['unidade'] as String,
+                            ideal: param['ideal'],
+                          ),
+                        )
                       else
                         Container(
                           margin: const EdgeInsets.symmetric(vertical: 10),
@@ -266,47 +369,85 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                           ),
                           child: const Row(
                             children: [
-                              Icon(Icons.info_outline, color: Colors.grey, size: 18),
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.grey,
+                                size: 18,
+                              ),
                               SizedBox(width: 8),
-                              Text('Nenhum parâmetro foi registrado nesta análise.', 
-                                   style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+                              Text(
+                                'Nenhum parâmetro foi registrado nesta análise.',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                      
+
                       const SizedBox(height: 14),
                       const Divider(),
                       const SizedBox(height: 6),
-                      const Text('Observações:', style: TextStyle(fontWeight: FontWeight.bold)),
-                      Text(data['observacoes'] ?? '—', style: const TextStyle(fontStyle: FontStyle.italic)),
+                      const Text(
+                        'Observações:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        data['observacoes'] ?? '—',
+                        style: const TextStyle(fontStyle: FontStyle.italic),
+                      ),
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          const Icon(Icons.calendar_today, size: 16, color: Colors.teal),
+                          const Icon(
+                            Icons.calendar_today,
+                            size: 16,
+                            color: Colors.teal,
+                          ),
                           const SizedBox(width: 4),
-                          Text('Data/Hora: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}'),
+                          Text(
+                            'Data/Hora: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}',
+                          ),
                         ],
                       ),
                       Row(
                         children: [
-                          const Icon(Icons.person, size: 16, color: Colors.teal),
+                          const Icon(
+                            Icons.person,
+                            size: 16,
+                            color: Colors.teal,
+                          ),
                           const SizedBox(width: 4),
-                          Text('Registrado por: ${data['registradoPor'] ?? '—'}'),
+                          Text(
+                            'Registrado por: ${data['registradoPor'] ?? '—'}',
+                          ),
                         ],
                       ),
-                      if (editadoPor != null && editadoPor.toString().isNotEmpty)
+                      if (editadoPor != null &&
+                          editadoPor.toString().isNotEmpty)
                         Row(
                           children: [
-                            const Icon(Icons.edit, size: 16, color: Colors.deepOrange),
+                            const Icon(
+                              Icons.edit,
+                              size: 16,
+                              color: Colors.deepOrange,
+                            ),
                             const SizedBox(width: 4),
-                            Text('Editado por: $editadoPor', style: const TextStyle(color: Colors.deepOrange)),
+                            Text(
+                              'Editado por: $editadoPor',
+                              style: const TextStyle(color: Colors.deepOrange),
+                            ),
                             if (editadoEm != null)
                               Padding(
                                 padding: const EdgeInsets.only(left: 8),
                                 child: Text(
                                   'em: '
                                   '${editadoEm is Timestamp ? DateFormat('dd/MM/yyyy HH:mm').format(editadoEm.toDate()) : editadoEm.toString()}',
-                                  style: const TextStyle(color: Colors.deepOrange, fontSize: 12),
+                                  style: const TextStyle(
+                                    color: Colors.deepOrange,
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ),
                           ],
@@ -319,20 +460,25 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Fechar', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Fechar',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-      )
+      ),
     );
   }
 
   void _editarRegistro(String docId, Map<String, dynamic> data) {
     if (!['admin', 'gerente', 'supervisor'].contains(_funcaoUsuario)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Você não tem permissão para editar este registro.')),
+        const SnackBar(
+          content: Text('Você não tem permissão para editar este registro.'),
+        ),
       );
       return;
     }
@@ -362,7 +508,7 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
       case 'oxigenio':
         return val < 4.0 || val > 14.0;
       case 'temperatura':
-        return val < 28.0 || val > 32.0;
+        return val < 26.0 || val > 32.0;
       case 'turbidez':
         return val < 40.0 || val > 60.0;
       case 'saturacao_percentual':
@@ -405,19 +551,33 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
       );
     }
 
-    Query registrosRef = FirebaseFirestore.instance.collection('registros_diarios');
+    Query registrosRef = FirebaseFirestore.instance.collection(
+      'registros_diarios',
+    );
 
     if (_tipoSelecionado != null) {
-      registrosRef = registrosRef.where('tipoDestino', isEqualTo: _tipoSelecionado);
+      registrosRef = registrosRef.where(
+        'tipoDestino',
+        isEqualTo: _tipoSelecionado,
+      );
     }
     if (_codigoSelecionado != null) {
-      registrosRef = registrosRef.where('codigo', isEqualTo: _codigoSelecionado);
+      registrosRef = registrosRef.where(
+        'codigo',
+        isEqualTo: _codigoSelecionado,
+      );
     }
     if (_dataInicio != null) {
-      registrosRef = registrosRef.where('dataHora', isGreaterThanOrEqualTo: Timestamp.fromDate(_dataInicio!));
+      registrosRef = registrosRef.where(
+        'dataHora',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(_dataInicio!),
+      );
     }
     if (_dataFim != null) {
-      registrosRef = registrosRef.where('dataHora', isLessThanOrEqualTo: Timestamp.fromDate(_dataFim!));
+      registrosRef = registrosRef.where(
+        'dataHora',
+        isLessThanOrEqualTo: Timestamp.fromDate(_dataFim!),
+      );
     }
 
     registrosRef = registrosRef.orderBy('dataHora', descending: true);
@@ -445,7 +605,409 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
 
             final docs = snapshot.data?.docs ?? [];
             if (docs.isEmpty) {
-              return const Center(child: Text('Nenhum registro encontrado.'));
+              return ResponsiveCenter(
+                padding: EdgeInsets.zero,
+                alignment: Alignment.topCenter,
+                child: ListView(
+                  children: [
+                    // Cabeçalho sempre presente
+                    const Padding(
+                      padding: EdgeInsets.only(
+                        top: 24,
+                        left: 24,
+                        right: 24,
+                        bottom: 8,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(Icons.analytics, size: 48, color: Colors.teal),
+                          SizedBox(height: 8),
+                          Text(
+                            'Registros de Análise de Água',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.teal,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Visualize e gerencie todos os registros de análise de água.',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.teal,
+                              fontWeight: FontWeight.w400,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Legenda sempre presente
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.blue.shade200,
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.blue.shade700,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Legenda do Sistema',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Explicação dos cards de análise
+                          Row(
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: Colors.blue.shade300,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.water_drop,
+                                  size: 12,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Cards azuis: Todos os parâmetros dentro da faixa ideal',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+
+                          Row(
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: Colors.orange,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.water_drop,
+                                  size: 12,
+                                  color: Colors.orange.shade700,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Cards laranja: Parâmetros fora da faixa ideal (atenção necessária)',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Explicação dos chips de parâmetros
+                          const Text(
+                            'Chips de Parâmetros:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              _buildChipLegenda('pH: 7.2', false),
+                              _buildChipLegenda('O₂: 4.1mg/L', true),
+                              _buildChipLegenda('T°: 28.5°C', false),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                child: const Text(
+                                  '...',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+
+                          Row(
+                            children: [
+                              _buildChipLegenda('Normal', false),
+                              const SizedBox(width: 8),
+                              const Text(
+                                '=',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Dentro da faixa ideal',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+
+                          Row(
+                            children: [
+                              _buildChipLegenda('Alerta', true),
+                              const SizedBox(width: 8),
+                              const Text(
+                                '=',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Fora da faixa ideal',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Filtros sempre visíveis
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: _tipoSelecionado,
+                            decoration: const InputDecoration(
+                              labelText: 'Tipo de Destino',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.category),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: null,
+                                child: Text('Todos'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'viveiro',
+                                child: Text('Viveiro'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'bercario',
+                                child: Text('Berçário'),
+                              ),
+                            ],
+                            onChanged: (valor) => setState(() {
+                              _tipoSelecionado = valor;
+                              // Limpa o código selecionado quando muda o tipo
+                              _codigoSelecionado = null;
+                            }),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: _codigoSelecionado,
+                            decoration: InputDecoration(
+                              labelText: 'Código do Local',
+                              border: const OutlineInputBorder(),
+                              prefixIcon: const Icon(Icons.location_on),
+                              // Muda a aparência quando desabilitado
+                              fillColor: _tipoSelecionado == null
+                                  ? Colors.grey.shade100
+                                  : null,
+                              filled: _tipoSelecionado == null,
+                            ),
+                            // Só permite seleção se um tipo estiver escolhido
+                            onChanged: _tipoSelecionado == null
+                                ? null
+                                : (valor) => setState(
+                                    () => _codigoSelecionado = valor,
+                                  ),
+                            items: _tipoSelecionado == null
+                                ? [
+                                    const DropdownMenuItem(
+                                      value: null,
+                                      child: Text('Selecione primeiro o tipo'),
+                                    ),
+                                  ]
+                                : [
+                                    const DropdownMenuItem(
+                                      value: null,
+                                      child: Text('Todos'),
+                                    ),
+                                    // Mostra apenas os itens do tipo selecionado
+                                    if (_tipoSelecionado == 'viveiro')
+                                      ..._viveiros.entries.map(
+                                        (e) => DropdownMenuItem(
+                                          value: e.key,
+                                          child: Text('${e.value} (${e.key})'),
+                                        ),
+                                      ),
+                                    if (_tipoSelecionado == 'bercario')
+                                      ..._bercarios.entries.map(
+                                        (e) => DropdownMenuItem(
+                                          value: e.key,
+                                          child: Text('${e.value} (${e.key})'),
+                                        ),
+                                      ),
+                                  ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final data = await showDatePicker(
+                                      context: context,
+                                      initialDate:
+                                          _dataInicio ?? DateTime.now(),
+                                      firstDate: DateTime(2020),
+                                      lastDate: DateTime.now(),
+                                    );
+                                    if (data != null)
+                                      setState(() => _dataInicio = data);
+                                  },
+                                  icon: const Icon(Icons.calendar_today),
+                                  label: Text(
+                                    _dataInicio == null
+                                        ? 'Data Início'
+                                        : DateFormat(
+                                            'dd/MM/yyyy',
+                                          ).format(_dataInicio!),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final data = await showDatePicker(
+                                      context: context,
+                                      initialDate: _dataFim ?? DateTime.now(),
+                                      firstDate: DateTime(2020),
+                                      lastDate: DateTime.now(),
+                                    );
+                                    if (data != null)
+                                      setState(() => _dataFim = data);
+                                  },
+                                  icon: const Icon(Icons.calendar_today),
+                                  label: Text(
+                                    _dataFim == null
+                                        ? 'Data Fim'
+                                        : DateFormat(
+                                            'dd/MM/yyyy',
+                                          ).format(_dataFim!),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () => setState(() {
+                              _tipoSelecionado = null;
+                              _codigoSelecionado = null;
+                              _dataInicio = null;
+                              _dataFim = null;
+                            }),
+                            icon: const Icon(Icons.clear),
+                            label: const Text('Limpar Filtros'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Mensagem de nenhum resultado
+                    const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.search_off, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text(
+                            'Nenhum registro encontrado',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Tente ajustar os filtros acima ou adicionar novos registros',
+                            style: TextStyle(fontSize: 14, color: Colors.grey),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
             }
 
             // Agrupa por data usando o rotulo bonito
@@ -457,252 +1019,765 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
               registrosPorData.putIfAbsent(chave, () => []).add(doc);
             }
 
-            return ListView(
-              children: [
-                // Cabeçalho e filtros que vão subir junto com a lista
-                const Padding(
-                  padding: EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(Icons.analytics, size: 48, color: Colors.teal),
-                      SizedBox(height: 8),
-                      Text(
-                        'Registros de Análise de Água',
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.teal),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Visualize e gerencie todos os registros de análise de água.',
-                        style: TextStyle(fontSize: 15, color: Colors.teal, fontWeight: FontWeight.w400),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Filtros
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    children: [
-                      DropdownButtonFormField<String>(
-                        value: _tipoSelecionado,
-                        decoration: const InputDecoration(
-                          labelText: 'Tipo',
-                          prefixIcon: Icon(Icons.category),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'viveiro', child: Text('Viveiro')),
-                          DropdownMenuItem(value: 'bercario', child: Text('Berçário')),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _tipoSelecionado = value;
-                            _codigoSelecionado = null;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: _codigoSelecionado,
-                        decoration: const InputDecoration(
-                          labelText: 'Filtrar por Código',
-                          prefixIcon: Icon(Icons.search),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: (() {
-                          List<DropdownMenuItem<String>> items = [];
-                          
-                          if (_tipoSelecionado == 'viveiro') {
-                            // Mostrar apenas viveiros
-                            final viveirosSorted = _viveiros.entries.toList()
-                              ..sort((a, b) => a.key.compareTo(b.key));
-                            
-                            items = viveirosSorted
-                                .map((e) => DropdownMenuItem<String>(
-                                      value: e.key,
-                                      child: Text('${e.value} (${e.key})'),
-                                    ))
-                                .toList();
-                          } else if (_tipoSelecionado == 'bercario') {
-                            // Mostrar apenas berçários
-                            final bercariosSorted = _bercarios.entries.toList()
-                              ..sort((a, b) => a.key.compareTo(b.key));
-                            
-                            items = bercariosSorted
-                                .map((e) => DropdownMenuItem<String>(
-                                      value: e.key,
-                                      child: Text('${e.value} (${e.key})'),
-                                    ))
-                                .toList();
-                          } else {
-                            // Se nenhum tipo selecionado, mostrar todos mas separados
-                            final viveiroItems = _viveiros.entries
-                                .map((e) => DropdownMenuItem<String>(
-                                      value: e.key,
-                                      child: Text('Viveiro ${e.value} (${e.key})'),
-                                    ))
-                                .toList();
-                            
-                            final bercarioItems = _bercarios.entries
-                                .map((e) => DropdownMenuItem<String>(
-                                      value: e.key,
-                                      child: Text('Berçário ${e.value} (${e.key})'),
-                                    ))
-                                .toList();
-                            
-                            items = [...viveiroItems, ...bercarioItems];
-                            items.sort((a, b) => a.value!.compareTo(b.value!));
-                          }
-                          
-                          return items;
-                        })(),
-                        onChanged: (value) => setState(() => _codigoSelecionado = value),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.date_range),
-                              label: Text(_dataInicio == null
-                                  ? 'Data início'
-                                  : DateFormat('dd/MM/yyyy').format(_dataInicio!)),
-                              onPressed: () => _selecionarData(inicio: true),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.event),
-                              label: Text(_dataFim == null
-                                  ? 'Data fim'
-                                  : DateFormat('dd/MM/yyyy').format(_dataFim!)),
-                              onPressed: () => _selecionarData(inicio: false),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        icon: const Icon(Icons.filter_alt_off),
-                        label: const Text('Limpar Filtros'),
-                        onPressed: () {
-                          setState(() {
-                            _tipoSelecionado = null;
-                            _codigoSelecionado = null;
-                            _dataInicio = null;
-                            _dataFim = null;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Lista de registros
-                ...registrosPorData.entries.expand((entry) {
-                  return [
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(entry.key,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            return ResponsiveCenter(
+              padding: EdgeInsets.zero,
+              alignment: Alignment.topCenter,
+              child: ListView(
+                children: [
+                  // Cabeçalho e filtros que vão subir junto com a lista
+                  const Padding(
+                    padding: EdgeInsets.only(
+                      top: 24,
+                      left: 24,
+                      right: 24,
+                      bottom: 8,
                     ),
-                    ...entry.value.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final dt = (data['dataHora'] as Timestamp).toDate();
-                      final destino = data['nome'] ?? data['codigo'] ?? '—';
-                      final por = data['registradoPor'] ?? '—';
-
-                      // Checagem de todos os parâmetros relevantes para chips de alerta
-                      final chips = <Widget>[];
-                      void addChip(bool cond, String label, Color color) {
-                        if (cond) {
-                          chips.add(Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Chip(label: Text(label), backgroundColor: color, labelStyle: const TextStyle(color: Colors.white)),
-                          ));
-                        }
-                      }
-                      addChip(_foraDoIdeal('ph', data['ph']), 'pH fora', Colors.redAccent);
-                      addChip(_foraDoIdeal('oxigenio', data['oxigenio']), 'O2 fora', Colors.orangeAccent);
-                      addChip(_foraDoIdeal('temperatura', data['temperatura']), 'Temp. fora', Colors.deepOrange);
-                      addChip(_foraDoIdeal('turbidez', data['turbidez']), 'Turbidez fora', Colors.purple);
-                      addChip(_foraDoIdeal('saturacao_percentual', data['saturacao_percentual']), 'Sat. % fora', Colors.blueGrey);
-                      addChip(_foraDoIdeal('saturacao_oxigenio', data['saturacao_oxigenio']), 'Sat. O2 fora', Colors.blue);
-                      addChip(_foraDoIdeal('salinidade', data['salinidade']), 'Salinidade fora', Colors.teal);
-                      addChip(_foraDoIdeal('calcio', data['calcio']), 'Cálcio fora', Colors.green);
-                      addChip(_foraDoIdeal('nitrito', data['nitrito']), 'Nitrito fora', Colors.brown);
-                      addChip(_foraDoIdeal('amonia', data['amonia']), 'Amônia fora', Colors.indigo);
-                      // Removidos: alcalinidade, dureza, transparência
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 2,
-                        child: ListTile(
-                          onTap: () => _mostrarDetalhes(data),
-                          leading: const Icon(Icons.analytics, color: Colors.teal),
-                          title: Text(destino, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Data: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}'),
-                              Text('Por: $por', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              if (chips.isNotEmpty)
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(children: chips),
-                                ),
-                            ],
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Icon(Icons.analytics, size: 48, color: Colors.teal),
+                        SizedBox(height: 8),
+                        Text(
+                          'Registros de Análise de Água',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.teal,
                           ),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'detalhes') {
-                                _mostrarDetalhes(data);
-                              } else if (value == 'excluir') {
-                                _confirmarExclusao(doc.id);
-                              } else if (value == 'editar') {
-                                _editarRegistro(doc.id, data);
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              const PopupMenuItem(
-                                value: 'detalhes',
-                                child: ListTile(
-                                  leading: Icon(Icons.info),
-                                  title: Text('Detalhes'),
+                          textAlign: TextAlign.center,
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Visualize e gerencie todos os registros de análise de água.',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.teal,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Legenda do sistema de cores e alertas
+                  Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200, width: 1),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.blue.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Legenda do Sistema',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade700,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Explicação dos cards de análise
+                        Row(
+                          children: [
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.blue.shade300),
+                              ),
+                              child: Icon(
+                                Icons.water_drop,
+                                size: 12,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Cards azuis: Todos os parâmetros dentro da faixa ideal',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
+                        Row(
+                          children: [
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: Colors.orange,
+                                  width: 2,
                                 ),
                               ),
-                              if (_funcaoUsuario == 'admin' || _funcaoUsuario == 'gerente')
-                                const PopupMenuItem(
-                                  value: 'editar',
-                                  child: ListTile(
-                                    leading: Icon(Icons.edit),
-                                    title: Text('Editar'),
-                                  ),
-                                ),
-                              const PopupMenuItem(
-                                value: 'excluir',
-                                child: ListTile(
-                                  leading: Icon(Icons.delete),
-                                  title: Text('Excluir'),
-                                ),
+                              child: Icon(
+                                Icons.water_drop,
+                                size: 12,
+                                color: Colors.orange.shade700,
                               ),
-                            ],
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Cards laranja: Parâmetros fora da faixa ideal (atenção necessária)',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Explicação dos chips de parâmetros
+                        const Text(
+                          'Chips de Parâmetros:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
                           ),
                         ),
-                      );
-                    }),
-                  ];
-                }).toList(),
-              ],
+                        const SizedBox(height: 6),
+
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            _buildChipLegenda('pH: 7.2', false),
+                            _buildChipLegenda('O₂: 4.1mg/L', true),
+                            _buildChipLegenda('T°: 28.5°C', false),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              child: const Text(
+                                '...',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
+                        Row(
+                          children: [
+                            _buildChipLegenda('Normal', false),
+                            const SizedBox(width: 8),
+                            const Text(
+                              '=',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Dentro da faixa ideal',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+
+                        Row(
+                          children: [
+                            _buildChipLegenda('Alerta', true),
+                            const SizedBox(width: 8),
+                            const Text(
+                              '=',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Fora da faixa ideal',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Filtros
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        DropdownButtonFormField<String>(
+                          initialValue: _tipoSelecionado,
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo',
+                            prefixIcon: Icon(Icons.category),
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: null, child: Text('Todos')),
+                            DropdownMenuItem(
+                              value: 'viveiro',
+                              child: Text('Viveiro'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'bercario',
+                              child: Text('Berçário'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _tipoSelecionado = value;
+                              _codigoSelecionado = null;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _codigoSelecionado,
+                          decoration: InputDecoration(
+                            labelText: 'Filtrar por Código',
+                            prefixIcon: const Icon(Icons.search),
+                            border: const OutlineInputBorder(),
+                            // Muda a aparência quando desabilitado
+                            fillColor: _tipoSelecionado == null
+                                ? Colors.grey.shade100
+                                : null,
+                            filled: _tipoSelecionado == null,
+                          ),
+                          // Só permite seleção se um tipo estiver escolhido
+                          onChanged: _tipoSelecionado == null
+                              ? null
+                              : (value) =>
+                                    setState(() => _codigoSelecionado = value),
+                          items: _tipoSelecionado == null
+                              ? [
+                                  const DropdownMenuItem(
+                                    value: null,
+                                    child: Text('Selecione primeiro o tipo'),
+                                  ),
+                                ]
+                              : (() {
+                                  List<DropdownMenuItem<String>> items = [
+                                    const DropdownMenuItem(
+                                      value: null,
+                                      child: Text('Todos'),
+                                    ),
+                                  ];
+
+                                  if (_tipoSelecionado == 'viveiro') {
+                                    // Mostrar apenas viveiros
+                                    final viveirosSorted =
+                                        _viveiros.entries.toList()..sort(
+                                          (a, b) => a.key.compareTo(b.key),
+                                        );
+
+                                    items.addAll(
+                                      viveirosSorted
+                                          .map(
+                                            (e) => DropdownMenuItem<String>(
+                                              value: e.key,
+                                              child: Text(
+                                                '${e.value} (${e.key})',
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                    );
+                                  } else if (_tipoSelecionado == 'bercario') {
+                                    // Mostrar apenas berçários
+                                    final bercariosSorted =
+                                        _bercarios.entries.toList()..sort(
+                                          (a, b) => a.key.compareTo(b.key),
+                                        );
+
+                                    items.addAll(
+                                      bercariosSorted
+                                          .map(
+                                            (e) => DropdownMenuItem<String>(
+                                              value: e.key,
+                                              child: Text(
+                                                '${e.value} (${e.key})',
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                    );
+                                  }
+
+                                  return items;
+                                })(),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.date_range),
+                                label: Text(
+                                  _dataInicio == null
+                                      ? 'Data início'
+                                      : DateFormat(
+                                          'dd/MM/yyyy',
+                                        ).format(_dataInicio!),
+                                ),
+                                onPressed: () => _selecionarData(inicio: true),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.event),
+                                label: Text(
+                                  _dataFim == null
+                                      ? 'Data fim'
+                                      : DateFormat(
+                                          'dd/MM/yyyy',
+                                        ).format(_dataFim!),
+                                ),
+                                onPressed: () => _selecionarData(inicio: false),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          icon: const Icon(Icons.filter_alt_off),
+                          label: const Text('Limpar Filtros'),
+                          onPressed: () {
+                            setState(() {
+                              _tipoSelecionado = null;
+                              _codigoSelecionado = null;
+                              _dataInicio = null;
+                              _dataFim = null;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Lista de registros
+                  ...registrosPorData.entries.expand((entry) {
+                    return [
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          entry.key,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      ...entry.value.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final dt = (data['dataHora'] as Timestamp).toDate();
+                        final destino = data['nome'] ?? data['codigo'] ?? '—';
+                        final por = data['registradoPor'] ?? '—';
+
+                        // Gerar abreviações dos parâmetros registrados
+                        List<String> parametrosRegistrados = [];
+
+                        if (data['ph'] != null &&
+                            data['ph'].toString().isNotEmpty) {
+                          parametrosRegistrados.add('pH: ${data['ph']}');
+                        }
+                        if (data['oxigenio'] != null &&
+                            data['oxigenio'].toString().isNotEmpty) {
+                          parametrosRegistrados.add(
+                            'O₂: ${data['oxigenio']}mg/L',
+                          );
+                        }
+                        if (data['temperatura'] != null &&
+                            data['temperatura'].toString().isNotEmpty) {
+                          parametrosRegistrados.add(
+                            'T°: ${data['temperatura']}°C',
+                          );
+                        }
+                        if (data['salinidade'] != null &&
+                            data['salinidade'].toString().isNotEmpty) {
+                          parametrosRegistrados.add(
+                            'Sal: ${data['salinidade']}ppt',
+                          );
+                        }
+                        if (data['turbidez'] != null &&
+                            data['turbidez'].toString().isNotEmpty) {
+                          parametrosRegistrados.add(
+                            'Turb: ${data['turbidez']}NTU',
+                          );
+                        }
+                        if (data['saturacao_percentual'] != null &&
+                            data['saturacao_percentual']
+                                .toString()
+                                .isNotEmpty) {
+                          parametrosRegistrados.add(
+                            'Sat%: ${data['saturacao_percentual']}%',
+                          );
+                        }
+                        if (data['saturacao_oxigenio'] != null &&
+                            data['saturacao_oxigenio'].toString().isNotEmpty) {
+                          parametrosRegistrados.add(
+                            'SatO₂: ${data['saturacao_oxigenio']}%',
+                          );
+                        }
+                        if (data['calcio'] != null &&
+                            data['calcio'].toString().isNotEmpty) {
+                          parametrosRegistrados.add(
+                            'Ca: ${data['calcio']}mg/L',
+                          );
+                        }
+                        if (data['nitrito'] != null &&
+                            data['nitrito'].toString().isNotEmpty) {
+                          parametrosRegistrados.add(
+                            'NO₂: ${data['nitrito']}mg/L',
+                          );
+                        }
+                        if (data['amonia'] != null &&
+                            data['amonia'].toString().isNotEmpty) {
+                          parametrosRegistrados.add(
+                            'NH₃: ${data['amonia']}mg/L',
+                          );
+                        }
+
+                        // Verificar se há parâmetros fora do ideal
+                        int parametrosForaIdeal = 0;
+                        for (var param in [
+                          'ph',
+                          'oxigenio',
+                          'temperatura',
+                          'salinidade',
+                          'turbidez',
+                          'saturacao_percentual',
+                          'saturacao_oxigenio',
+                          'calcio',
+                          'nitrito',
+                          'amonia',
+                        ]) {
+                          if (_foraDoIdeal(param, data[param])) {
+                            parametrosForaIdeal++;
+                          }
+                        }
+
+                        return Card(
+                          elevation: 4,
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: parametrosForaIdeal > 0
+                                ? const BorderSide(
+                                    color: Colors.orange,
+                                    width: 2,
+                                  )
+                                : BorderSide.none,
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => _mostrarDetalhes(data),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.water_drop,
+                                        color: parametrosForaIdeal > 0
+                                            ? Colors.orange
+                                            : Colors.blue,
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              destino,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                            Text(
+                                              DateFormat(
+                                                'dd/MM/yyyy HH:mm',
+                                              ).format(dt),
+                                              style: const TextStyle(
+                                                color: Colors.grey,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            Text(
+                                              'Por: $por',
+                                              style: const TextStyle(
+                                                color: Colors.grey,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (parametrosForaIdeal > 0)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$parametrosForaIdeal ⚠️',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      PopupMenuButton<String>(
+                                        onSelected: (value) {
+                                          if (value == 'detalhes') {
+                                            _mostrarDetalhes(data);
+                                          } else if (value == 'excluir') {
+                                            _confirmarExclusao(doc.id);
+                                          } else if (value == 'editar') {
+                                            _editarRegistro(doc.id, data);
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          const PopupMenuItem(
+                                            value: 'detalhes',
+                                            child: ListTile(
+                                              leading: Icon(Icons.info),
+                                              title: Text('Detalhes'),
+                                            ),
+                                          ),
+                                          if (_funcaoUsuario == 'admin' ||
+                                              _funcaoUsuario == 'gerente')
+                                            const PopupMenuItem(
+                                              value: 'editar',
+                                              child: ListTile(
+                                                leading: Icon(Icons.edit),
+                                                title: Text('Editar'),
+                                              ),
+                                            ),
+                                          const PopupMenuItem(
+                                            value: 'excluir',
+                                            child: ListTile(
+                                              leading: Icon(Icons.delete),
+                                              title: Text('Excluir'),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (parametrosRegistrados.isNotEmpty) ...[
+                                    const Text(
+                                      'Parâmetros registrados:',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: parametrosRegistrados.take(6).map((
+                                        parametro,
+                                      ) {
+                                        final parts = parametro.split(': ');
+                                        final nome = parts[0];
+
+                                        // Verificar se este parâmetro específico está fora do ideal
+                                        String campo = '';
+                                        switch (nome) {
+                                          case 'pH':
+                                            campo = 'ph';
+                                            break;
+                                          case 'O₂':
+                                            campo = 'oxigenio';
+                                            break;
+                                          case 'T°':
+                                            campo = 'temperatura';
+                                            break;
+                                          case 'Sal':
+                                            campo = 'salinidade';
+                                            break;
+                                          case 'Turb':
+                                            campo = 'turbidez';
+                                            break;
+                                          case 'Sat%':
+                                            campo = 'saturacao_percentual';
+                                            break;
+                                          case 'SatO₂':
+                                            campo = 'saturacao_oxigenio';
+                                            break;
+                                          case 'Ca':
+                                            campo = 'calcio';
+                                            break;
+                                          case 'NO₂':
+                                            campo = 'nitrito';
+                                            break;
+                                          case 'NH₃':
+                                            campo = 'amonia';
+                                            break;
+                                        }
+
+                                        final foraIdeal = _foraDoIdeal(
+                                          campo,
+                                          data[campo],
+                                        );
+
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: foraIdeal
+                                                ? Colors.orange.shade100
+                                                : Colors.blue.shade50,
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            border: Border.all(
+                                              color: foraIdeal
+                                                  ? Colors.orange
+                                                  : Colors.blue.shade200,
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            parametro,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: foraIdeal
+                                                  ? Colors.orange.shade800
+                                                  : Colors.blue.shade800,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                    if (parametrosRegistrados.length > 6)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          '+${parametrosRegistrados.length - 6} parâmetros...',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey.shade600,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                  ] else
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Text(
+                                        'Nenhum parâmetro registrado',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ];
+                  }),
+                ],
+              ),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  // Método helper para criar chips de exemplo na legenda
+  Widget _buildChipLegenda(String texto, bool foraIdeal) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: foraIdeal ? Colors.orange.shade100 : Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: foraIdeal ? Colors.orange : Colors.blue.shade200,
+          width: 1,
+        ),
+      ),
+      child: Text(
+        texto,
+        style: TextStyle(
+          fontSize: 10,
+          color: foraIdeal ? Colors.orange.shade800 : Colors.blue.shade800,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );

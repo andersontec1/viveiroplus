@@ -5,16 +5,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/degrade_fundo.dart';
+import '../widgets/racao_meta_chips.dart';
 
 class TelaDetalhesCiclo extends StatefulWidget {
-  final String cicloId;
-  final Map<String, dynamic> dadosCiclo;
-
   const TelaDetalhesCiclo({
     super.key,
     required this.cicloId,
     required this.dadosCiclo,
   });
+  final String cicloId;
+  final Map<String, dynamic> dadosCiclo;
 
   @override
   State<TelaDetalhesCiclo> createState() => _TelaDetalhesCicloState();
@@ -56,9 +56,12 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             .where('codigo', isEqualTo: widget.dadosCiclo['codigo'])
             .limit(1)
             .get();
-        
+
         if (bercarioQuery.docs.isNotEmpty) {
-          _dadosViveiro = {'tipo': 'Berçário', ...bercarioQuery.docs.first.data()};
+          _dadosViveiro = {
+            'tipo': 'Berçário',
+            ...bercarioQuery.docs.first.data(),
+          };
         }
       } else {
         _dadosViveiro = {'tipo': 'Viveiro', ...viveiroQuery.docs.first.data()};
@@ -86,13 +89,34 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
           .limit(20)
           .get();
 
-      // Carregar registros de ração
-      final racaoQuery = await FirebaseFirestore.instance
-          .collection('racao')
-          .where('codigo', isEqualTo: widget.dadosCiclo['codigo'])
-          .orderBy('timestamp', descending: true)
-          .limit(20)
-          .get();
+      // Carregar registros de ração (preferir novos campos com fallback)
+      QuerySnapshot<Map<String, dynamic>> racaoQuery;
+      try {
+        // Preferência: novos campos (codigoDestino/dataRegistro) com filtro de tipo quando disponível
+        Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+            .collection('racao')
+            .where('codigoDestino', isEqualTo: widget.dadosCiclo['codigo']);
+
+        if (_dadosViveiro != null) {
+          final tipoDestino = _dadosViveiro!['tipo'] == 'Berçário'
+              ? 'bercario'
+              : 'viveiro';
+          query = query.where('tipoDestino', isEqualTo: tipoDestino);
+        }
+
+        racaoQuery = await query
+            .orderBy('dataRegistro', descending: true)
+            .limit(20)
+            .get();
+      } catch (e) {
+        // Fallback para campos legados
+        racaoQuery = await FirebaseFirestore.instance
+            .collection('racao')
+            .where('codigo', isEqualTo: widget.dadosCiclo['codigo'])
+            .orderBy('timestamp', descending: true)
+            .limit(20)
+            .get();
+      }
 
       // Carregar viveiros disponíveis para transferência
       final viveirosQuery = await FirebaseFirestore.instance
@@ -167,11 +191,18 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.red.withOpacity(0.8), Colors.red.withOpacity(0.6)],
+                          colors: [
+                            Colors.red.withOpacity(0.8),
+                            Colors.red.withOpacity(0.6),
+                          ],
                         ),
                         borderRadius: BorderRadius.circular(15),
                       ),
-                      child: const Icon(Icons.lock, color: Colors.white, size: 24),
+                      child: const Icon(
+                        Icons.lock,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     const Text(
@@ -187,21 +218,33 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                 const SizedBox(height: 24),
                 TextFormField(
                   controller: ctrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   style: const TextStyle(color: Color(0xFF045D3A)),
                   decoration: InputDecoration(
                     labelText: 'Peso Médio Final (g)',
-                    labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.7)),
-                    prefixIcon: const Icon(Icons.scale, color: Color(0xFF049F56)),
+                    labelStyle: TextStyle(
+                      color: const Color(0xFF045D3A).withOpacity(0.7),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.scale,
+                      color: Color(0xFF049F56),
+                    ),
                     filled: true,
                     fillColor: const Color(0xFF049F56).withOpacity(0.1),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: const Color(0xFF049F56).withOpacity(0.3)),
+                      borderSide: BorderSide(
+                        color: const Color(0xFF049F56).withOpacity(0.3),
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15),
-                      borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF049F56),
+                        width: 2,
+                      ),
                     ),
                   ),
                 ),
@@ -215,7 +258,9 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                            side: BorderSide(
+                              color: Colors.grey.withOpacity(0.3),
+                            ),
                           ),
                         ),
                         child: const Text(
@@ -232,7 +277,10 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                       child: Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [Colors.red.withOpacity(0.8), Colors.red.withOpacity(0.6)],
+                            colors: [
+                              Colors.red.withOpacity(0.8),
+                              Colors.red.withOpacity(0.6),
+                            ],
                           ),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
@@ -245,7 +293,9 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                         ),
                         child: ElevatedButton(
                           onPressed: () {
-                            final val = double.tryParse(ctrl.text.replaceAll(',', '.'));
+                            final val = double.tryParse(
+                              ctrl.text.replaceAll(',', '.'),
+                            );
                             Navigator.pop(context, val);
                           },
                           style: ElevatedButton.styleFrom(
@@ -279,17 +329,25 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
 
     final user = FirebaseAuth.instance.currentUser;
     final nomeUsuario = user != null
-        ? ((await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get()).data()?['nome'] ?? '—')
+        ? ((await FirebaseFirestore.instance
+                      .collection('usuarios')
+                      .doc(user.uid)
+                      .get())
+                  .data()?['nome'] ??
+              '—')
         : '—';
 
     try {
-      await FirebaseFirestore.instance.collection('ciclos').doc(widget.cicloId).update({
-        'encerrado': true,
-        'fechadoPor': nomeUsuario,
-        'dataEncerramento': Timestamp.now(),
-        'pesoFinal': pesoFinal,
-      });
-      
+      await FirebaseFirestore.instance
+          .collection('ciclos')
+          .doc(widget.cicloId)
+          .update({
+            'encerrado': true,
+            'fechadoPor': nomeUsuario,
+            'dataEncerramento': Timestamp.now(),
+            'pesoFinal': pesoFinal,
+          });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -302,10 +360,15 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             ),
             backgroundColor: _corPrimaria,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
-        Navigator.pop(context, true); // Retorna true para indicar que houve mudança
+        Navigator.pop(
+          context,
+          true,
+        ); // Retorna true para indicar que houve mudança
       }
     } catch (e) {
       if (mounted) {
@@ -320,7 +383,9 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -340,7 +405,9 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
           ),
           backgroundColor: Colors.orange,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       return;
@@ -356,13 +423,17 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
     );
   }
 
-  Future<void> _executarTransferencia(String viveiroDestinoId, int quantidade, String observacoes) async {
+  Future<void> _executarTransferencia(
+    String viveiroDestinoId,
+    int quantidade,
+    String observacoes,
+  ) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
       final now = DateTime.now();
-      
+
       // Criar registro de transferência
       await FirebaseFirestore.instance.collection('transferencias').add({
         'cicloId': widget.cicloId,
@@ -376,7 +447,9 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
       });
 
       // Buscar nome do viveiro de destino
-      final viveiroDestino = _viveirosDisponiveis.firstWhere((v) => v['id'] == viveiroDestinoId);
+      final viveiroDestino = _viveirosDisponiveis.firstWhere(
+        (v) => v['id'] == viveiroDestinoId,
+      );
       final codigoDestino = viveiroDestino['codigo'];
       final nomeDestino = viveiroDestino['nome'] ?? '—';
 
@@ -385,12 +458,12 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
           .collection('ciclos')
           .doc(widget.cicloId)
           .update({
-        'codigo': codigoDestino,
-        'nome': nomeDestino,
-        'dataUltimaTransferencia': now,
-        'updatedAt': now,
-        'updatedBy': user.uid,
-      });
+            'codigo': codigoDestino,
+            'nome': nomeDestino,
+            'dataUltimaTransferencia': now,
+            'updatedAt': now,
+            'updatedBy': user.uid,
+          });
 
       // Recarregar dados
       await _carregarDados();
@@ -407,7 +480,9 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             ),
             backgroundColor: _corPrimaria,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -424,7 +499,9 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -469,14 +546,15 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
     final data = widget.dadosCiclo['dataInicio']?.toDate();
     final encerrado = widget.dadosCiclo['encerrado'] == true;
     final dataEncerramento = widget.dadosCiclo['dataEncerramento']?.toDate();
-    final previsaoEncerramento = widget.dadosCiclo['previsaoEncerramento']?.toDate();
+    final previsaoEncerramento = widget.dadosCiclo['previsaoEncerramento']
+        ?.toDate();
     final abertoPor = widget.dadosCiclo['abertoPor'] ?? '—';
     final fechadoPor = widget.dadosCiclo['fechadoPor'] ?? '';
     final pesoFinal = widget.dadosCiclo['pesoFinal'];
     final pesoInicial = (widget.dadosCiclo['pesoInicial'] ?? 0) as num;
 
     // Cálculo duração
-    int duracaoDias; 
+    int duracaoDias;
     if (encerrado && dataEncerramento != null) {
       duracaoDias = dataEncerramento.difference(data!).inDays;
     } else {
@@ -551,9 +629,12 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: encerrado 
+                  color: encerrado
                       ? Colors.grey.withOpacity(0.3)
                       : _corPrimaria.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(20),
@@ -573,31 +654,44 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             ],
           ),
           const SizedBox(height: 24),
-          
+
           // Informações principais
           _buildInfoRow('📅 Início', _formatarData(data!)),
           if (previsaoEncerramento != null)
             _buildInfoRow('🎯 Previsão', _formatarData(previsaoEncerramento)),
           if (encerrado && dataEncerramento != null)
             _buildInfoRow('🏁 Encerrado', _formatarData(dataEncerramento)),
-          _buildInfoRow('🦐 Estocados', '${widget.dadosCiclo['quantidadeEstocada']} pós-larvas'),
-          if (widget.dadosCiclo['pesoInicial'] != null && widget.dadosCiclo['pesoInicial'] > 0)
-            _buildInfoRow('⚖️ Peso Inicial', '${widget.dadosCiclo['pesoInicial'].toString().replaceAll('.', ',')} g'),
+          _buildInfoRow(
+            '🦐 Estocados',
+            '${widget.dadosCiclo['quantidadeEstocada']} pós-larvas',
+          ),
+          if (widget.dadosCiclo['pesoInicial'] != null &&
+              widget.dadosCiclo['pesoInicial'] > 0)
+            _buildInfoRow(
+              '⚖️ Peso Inicial',
+              '${widget.dadosCiclo['pesoInicial'].toString().replaceAll('.', ',')} g',
+            ),
           if (encerrado && pesoFinal != null)
-            _buildInfoRow('🎯 Peso Final', '${pesoFinal.toString().replaceAll('.', ',')} g'),
+            _buildInfoRow(
+              '🎯 Peso Final',
+              '${pesoFinal.toString().replaceAll('.', ',')} g',
+            ),
           _buildInfoRow('⏱️ Duração', '$duracaoDias dias'),
           if (ganhoPeso != null)
-            _buildInfoRow('📈 Ganho Médio', '${ganhoPeso.toString().replaceAll('.', ',')} g'),
-          
+            _buildInfoRow(
+              '📈 Ganho Médio',
+              '${ganhoPeso.toString().replaceAll('.', ',')} g',
+            ),
+
           // Informação do tipo (berçário/viveiro)
           if (_dadosViveiro != null)
             _buildInfoRow(
-              _dadosViveiro!['tipo'] == 'Berçário' ? '🏠 Local' : '🏊 Local', 
-              '${_dadosViveiro!['tipo']}: ${widget.dadosCiclo['codigo']}'
+              _dadosViveiro!['tipo'] == 'Berçário' ? '🏠 Local' : '🏊 Local',
+              '${_dadosViveiro!['tipo']}: ${widget.dadosCiclo['codigo']}',
             ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Responsáveis
           Container(
             padding: const EdgeInsets.all(12),
@@ -614,17 +708,21 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
               ],
             ),
           ),
-          
+
           if (!encerrado) ...[
             const SizedBox(height: 20),
-            
+
             // Botão de transferência para berçário
-            if (_dadosViveiro != null && _dadosViveiro!['tipo'] == 'Berçário') ...[
+            if (_dadosViveiro != null &&
+                _dadosViveiro!['tipo'] == 'Berçário') ...[
               Center(
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [_corPrimaria.withOpacity(0.8), _corPrimaria.withOpacity(0.6)],
+                      colors: [
+                        _corPrimaria.withOpacity(0.8),
+                        _corPrimaria.withOpacity(0.6),
+                      ],
                     ),
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: [
@@ -649,7 +747,10 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 16,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(15),
                       ),
@@ -659,13 +760,16 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
               ),
               const SizedBox(height: 16),
             ],
-            
+
             // Botão de encerrar
             Center(
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.red.withOpacity(0.8), Colors.red.withOpacity(0.6)],
+                    colors: [
+                      Colors.red.withOpacity(0.8),
+                      Colors.red.withOpacity(0.6),
+                    ],
                   ),
                   borderRadius: BorderRadius.circular(15),
                   boxShadow: [
@@ -690,7 +794,10 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15),
                     ),
@@ -718,7 +825,7 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
       case 'povoamentos':
         // Combinear povoamentos e transferências em uma timeline
         List<Map<String, dynamic>> eventosTimeline = [];
-        
+
         // Adicionar povoamentos
         for (var pov in _povoamentos) {
           eventosTimeline.add({
@@ -727,7 +834,7 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             'dados': pov,
           });
         }
-        
+
         // Adicionar transferências
         for (var transf in _transferencias) {
           eventosTimeline.add({
@@ -736,10 +843,10 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             'dados': transf,
           });
         }
-        
+
         // Ordenar por data (mais recente primeiro)
         eventosTimeline.sort((a, b) => b['data'].compareTo(a['data']));
-        
+
         if (eventosTimeline.isEmpty) {
           return const Center(
             child: Padding(
@@ -751,7 +858,7 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             ),
           );
         }
-        
+
         return ListView.builder(
           itemCount: eventosTimeline.length,
           itemBuilder: (context, index) {
@@ -759,7 +866,7 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             final tipo = evento['tipo'];
             final data = evento['data'];
             final dados = evento['dados'];
-            
+
             if (tipo == 'povoamento') {
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -778,8 +885,12 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                     children: [
                       Text('Por: ${dados['responsavel'] ?? '—'}'),
                       Text(DateFormat('dd/MM/yyyy HH:mm').format(data)),
-                      if (dados['observacoes'] != null && dados['observacoes'].toString().isNotEmpty)
-                        Text('Obs: ${dados['observacoes']}', style: const TextStyle(fontStyle: FontStyle.italic)),
+                      if (dados['observacoes'] != null &&
+                          dados['observacoes'].toString().isNotEmpty)
+                        Text(
+                          'Obs: ${dados['observacoes']}',
+                          style: const TextStyle(fontStyle: FontStyle.italic),
+                        ),
                     ],
                   ),
                 ),
@@ -801,10 +912,16 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('De: ${dados['codigoOrigem']} → Para: ${dados['codigoDestino']}'),
+                      Text(
+                        'De: ${dados['codigoOrigem']} → Para: ${dados['codigoDestino']}',
+                      ),
                       Text(DateFormat('dd/MM/yyyy HH:mm').format(data)),
-                      if (dados['observacoes'] != null && dados['observacoes'].toString().isNotEmpty)
-                        Text('Obs: ${dados['observacoes']}', style: const TextStyle(fontStyle: FontStyle.italic)),
+                      if (dados['observacoes'] != null &&
+                          dados['observacoes'].toString().isNotEmpty)
+                        Text(
+                          'Obs: ${dados['observacoes']}',
+                          style: const TextStyle(fontStyle: FontStyle.italic),
+                        ),
                     ],
                   ),
                 ),
@@ -846,8 +963,10 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (analise['ph'] != null) Text('pH: ${analise['ph']}'),
-                    if (analise['temperatura'] != null) Text('Temp: ${analise['temperatura']}°C'),
-                    if (analise['oxigenio'] != null) Text('O₂: ${analise['oxigenio']} mg/L'),
+                    if (analise['temperatura'] != null)
+                      Text('Temp: ${analise['temperatura']}°C'),
+                    if (analise['oxigenio'] != null)
+                      Text('O₂: ${analise['oxigenio']} mg/L'),
                     Text('Por: ${analise['registradoPor'] ?? '—'}'),
                   ],
                 ),
@@ -872,28 +991,128 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
           itemCount: _racoes.length,
           itemBuilder: (context, index) {
             final racao = _racoes[index];
-            final data = racao['timestamp']?.toDate() ?? DateTime.now();
+            final Timestamp? ts =
+                (racao['dataRegistro'] as Timestamp?) ??
+                (racao['timestamp'] as Timestamp?);
+            final DateTime data = ts?.toDate() ?? DateTime.now();
             final quantidade = racao['quantidade'] ?? 0;
             final sobras = racao['sobras'] ?? 0;
             final consumo = quantidade - sobras;
+            final registradoPor = racao['registradoPor'] ?? '—';
+
+            // Novos campos
+            final int? trato = racao['trato'] is num
+                ? (racao['trato'] as num).toInt()
+                : null;
+            final int? diaCiclo = racao['diaCiclo'] is num
+                ? (racao['diaCiclo'] as num).toInt()
+                : null;
+            final double? totalAcumulado = racao['totalAcumulado'] is num
+                ? (racao['totalAcumulado'] as num).toDouble()
+                : null;
+
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              child: ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.restaurant, color: Colors.orange),
-                ),
-                title: Text('${quantidade}g fornecido'),
-                subtitle: Column(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Sobras: ${sobras}g | Consumo: ${consumo}g'),
-                    Text(DateFormat('dd/MM/yyyy HH:mm').format(data)),
-                    Text('Por: ${racao['registradoPor'] ?? '—'}'),
+                    Row(
+                      children: [
+                        const Icon(Icons.set_meal, color: Colors.orange),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            DateFormat('dd/MM/yyyy HH:mm').format(data),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Chip(
+                          label: Text(
+                            '${(quantidade as num).toDouble().toStringAsFixed(2)} kg',
+                          ),
+                          backgroundColor: Colors.orange.shade50,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (trato != null) ...[
+                          const Icon(
+                            Icons.fastfood,
+                            size: 14,
+                            color: Colors.orange,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${trato}º Trato',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ] else if (racao['horario'] != null) ...[
+                          Icon(
+                            Icons.access_time,
+                            size: 14,
+                            color: Colors.grey[700],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            racao['horario'],
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        Icon(Icons.event, size: 14, color: Colors.grey[700]),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${data.day}/${data.month}/${data.year}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (diaCiclo != null || totalAcumulado != null)
+                      const SizedBox(height: 6),
+                    RacaoMetaChips(
+                      trato: null,
+                      diaCiclo: diaCiclo,
+                      totalAcumulado: totalAcumulado,
+                      baseSwatch: Colors.orange,
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Fornecido: ${quantidade}kg | Consumo: ${consumo}kg'),
+                    if (sobras > 0)
+                      Text(
+                        'Sobras: ${sobras}kg',
+                        style: TextStyle(color: Colors.orange[700]),
+                      ),
+                    Text(
+                      'Por: $registradoPor',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => _mostrarDetalhesRacao(racao),
+                        icon: const Icon(Icons.open_in_new, size: 16),
+                        label: const Text('Detalhes'),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -904,6 +1123,220 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
       default:
         return const SizedBox();
     }
+  }
+
+  void _mostrarDetalhesRacao(Map<String, dynamic> data) {
+    final Timestamp? ts =
+        (data['dataRegistro'] as Timestamp?) ??
+        (data['timestamp'] as Timestamp?);
+    final DateTime dt = ts?.toDate() ?? DateTime.now();
+    final quantidade = data['quantidade'] ?? 0;
+    final sobras = data['sobras'] ?? 0;
+    final consumo = quantidade - sobras;
+    final eficiencia = quantidade > 0
+        ? ((consumo / quantidade) * 100).toStringAsFixed(1)
+        : '0';
+    final int? trato = data['trato'] is num
+        ? (data['trato'] as num).toInt()
+        : null;
+    final int? diaCiclo = data['diaCiclo'] is num
+        ? (data['diaCiclo'] as num).toInt()
+        : null;
+    final double? totalAcumulado = data['totalAcumulado'] is num
+        ? (data['totalAcumulado'] as num).toDouble()
+        : null;
+
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Container(
+          padding: const EdgeInsets.all(0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFE0B2),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.set_meal, color: Colors.orange, size: 28),
+                    SizedBox(width: 8),
+                    Text(
+                      'Registro de Ração',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_today,
+                            color: Colors.orange,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Data: ${DateFormat('dd/MM/yyyy HH:mm').format(dt)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    if (trato != null ||
+                        diaCiclo != null ||
+                        totalAcumulado != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: RacaoMetaChips(
+                          trato: trato,
+                          diaCiclo: diaCiclo,
+                          totalAcumulado: totalAcumulado,
+                          baseSwatch: Colors.orange,
+                        ),
+                      ),
+
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.restaurant,
+                            color: Colors.orange,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Quantidade fornecida: ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '$quantidade kg',
+                            style: TextStyle(
+                              color: Colors.orange.shade900,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: sobras > 0
+                            ? Colors.orange.shade50
+                            : Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            sobras > 0 ? Icons.warning : Icons.check_circle,
+                            color: sobras > 0 ? Colors.orange : Colors.green,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Sobras: ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '$sobras kg',
+                            style: TextStyle(
+                              color: sobras > 0
+                                  ? Colors.orange.shade900
+                                  : Colors.green.shade900,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.trending_up,
+                            color: Colors.blue,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Consumo efetivo: ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '$consumo kg ($eficiencia%)',
+                            style: TextStyle(
+                              color: Colors.blue.shade900,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Fechar'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -961,15 +1394,14 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
 }
 
 class _DialogoTransferencia extends StatefulWidget {
-  final String cicloId;
-  final List<Map<String, dynamic>> viveirosDisponiveis;
-  final Function(String, int, String) onTransferencia;
-
   const _DialogoTransferencia({
     required this.cicloId,
     required this.viveirosDisponiveis,
     required this.onTransferencia,
   });
+  final String cicloId;
+  final List<Map<String, dynamic>> viveirosDisponiveis;
+  final Function(String, int, String) onTransferencia;
 
   @override
   State<_DialogoTransferencia> createState() => _DialogoTransferenciaState();
@@ -998,7 +1430,7 @@ class _DialogoTransferenciaState extends State<_DialogoTransferencia> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              value: _viveiroSelecionado,
+              initialValue: _viveiroSelecionado,
               decoration: const InputDecoration(
                 labelText: 'Viveiro de Destino',
                 border: OutlineInputBorder(),
@@ -1006,11 +1438,14 @@ class _DialogoTransferenciaState extends State<_DialogoTransferencia> {
               items: widget.viveirosDisponiveis.map((viveiro) {
                 return DropdownMenuItem<String>(
                   value: viveiro['id'],
-                  child: Text('${viveiro['codigo']} - ${viveiro['nome'] ?? 'Sem nome'}'),
+                  child: Text(
+                    '${viveiro['codigo']} - ${viveiro['nome'] ?? 'Sem nome'}',
+                  ),
                 );
               }).toList(),
               onChanged: (value) => setState(() => _viveiroSelecionado = value),
-              validator: (value) => value == null ? 'Selecione um viveiro' : null,
+              validator: (value) =>
+                  value == null ? 'Selecione um viveiro' : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -1054,9 +1489,13 @@ class _DialogoTransferenciaState extends State<_DialogoTransferencia> {
             if (_formKey.currentState!.validate()) {
               final quantidade = int.parse(_quantidadeController.text);
               final observacoes = _observacoesController.text.trim();
-              
+
               Navigator.pop(context);
-              widget.onTransferencia(_viveiroSelecionado!, quantidade, observacoes);
+              widget.onTransferencia(
+                _viveiroSelecionado!,
+                quantidade,
+                observacoes,
+              );
             }
           },
           child: const Text('Transferir'),

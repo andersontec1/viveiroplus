@@ -3,9 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/degrade_fundo.dart';
+import '../widgets/responsive_center.dart';
+import '../helpers/permissions_helper.dart';
 
 class CadastroUsuarioScreen extends StatefulWidget {
-  const CadastroUsuarioScreen({super.key, this.uid, this.nomeAtual, this.nomeUsuarioAtual, this.funcaoAtual, this.redefinicao = false});
+  const CadastroUsuarioScreen({
+    super.key,
+    this.uid,
+    this.nomeAtual,
+    this.nomeUsuarioAtual,
+    this.funcaoAtual,
+    this.redefinicao = false,
+  });
   final String? uid;
   final String? nomeAtual;
   final String? nomeUsuarioAtual;
@@ -24,28 +33,6 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
   final _confirmarSenhaController = TextEditingController();
   bool _mostrarSenha = false;
 
-  // Permissões disponíveis (baseadas nas telas do menu principal)
-  final List<Map<String, String>> _todasPermissoes = [
-    {'chave': 'analise_agua', 'label': 'Análise da Água'},
-    {'chave': 'registros_analise', 'label': 'Registros de Análise'},
-    {'chave': 'registro_racao', 'label': 'Registro de Ração'},
-    {'chave': 'historico_racao', 'label': 'Histórico de Ração'},
-    {'chave': 'relatorios', 'label': 'Relatórios'},
-    {'chave': 'listar_viveiros', 'label': 'Listar Viveiros'},
-    {'chave': 'listar_bercarios', 'label': 'Listar Berçários'},
-    {'chave': 'cadastro_viveiro', 'label': 'Cadastrar Viveiro'},
-    {'chave': 'editar_viveiro', 'label': 'Editar Viveiro'},
-    {'chave': 'usuarios', 'label': 'Cadastrar Usuário'},
-    {'chave': 'gerenciar_usuarios', 'label': 'Gerenciar Usuários'},
-    {'chave': 'painel_web', 'label': 'Painel Web'},
-    {'chave': 'biomassa', 'label': 'Cálculo de Biomassa'},
-    {'chave': 'insumos', 'label': 'Cadastro de Insumos'},
-    {'chave': 'estoque_insumos', 'label': 'Estoque de Insumos'},
-    {'chave': 'ciclos_viveiro', 'label': 'Ciclos por Viveiro'},
-    {'chave': 'pendencias', 'label': 'Pendências'},
-    {'chave': 'notificacoes', 'label': 'Notificações'},
-    {'chave': 'resumo_detalhado', 'label': 'Resumo Diário'},
-  ];
   final List<String> _permissoesSelecionadas = [];
 
   final List<Map<String, String>> _funcoesComDescricao = [
@@ -82,12 +69,20 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.redefinicao && widget.nomeAtual != null && widget.nomeUsuarioAtual != null && widget.funcaoAtual != null) {
+    if (widget.redefinicao &&
+        widget.nomeAtual != null &&
+        widget.nomeUsuarioAtual != null &&
+        widget.funcaoAtual != null) {
       _nomeCompletoController.text = widget.nomeAtual!;
       _usernameController.text = widget.nomeUsuarioAtual!;
       _funcaoSelecionada = widget.funcaoAtual!;
     }
-    // TODO: Se for edição, carregar permissões do usuário e preencher _permissoesSelecionadas
+    // Prefill com padrão da função selecionada, se ainda vazio
+    if (_permissoesSelecionadas.isEmpty) {
+      _permissoesSelecionadas.addAll(
+        PermissionsHelper.forRole(_funcaoSelecionada),
+      );
+    }
   }
 
   Future<void> _criarUsuario() async {
@@ -108,14 +103,20 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
             .get();
 
         if (resultado.docs.isNotEmpty) {
-          _mostrarSnackBar('Nome de usuário já existe. Escolha outro.', erro: true);
+          _mostrarSnackBar(
+            'Nome de usuário já existe. Escolha outro.',
+            erro: true,
+          );
           setState(() => _salvando = false);
           return;
         }
       }
 
       if (widget.redefinicao && widget.uid != null) {
-        await FirebaseFirestore.instance.collection('usuarios').doc(widget.uid).delete();
+        await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(widget.uid)
+            .delete();
       }
 
       final credenciais = await FirebaseAuth.instance
@@ -127,7 +128,10 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
       final criador = FirebaseAuth.instance.currentUser;
       String? nomeCriador;
       if (criador != null) {
-        final snap = await FirebaseFirestore.instance.collection('usuarios').doc(criador.uid).get();
+        final snap = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(criador.uid)
+            .get();
         nomeCriador = snap.data()?['nome'] ?? criador.uid;
       }
       await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
@@ -141,7 +145,12 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
         'criadoPor': nomeCriador ?? 'desconhecido',
       });
 
-      _mostrarSnackBar(widget.redefinicao ? 'Senha redefinida com sucesso!' : 'Usuário criado com sucesso!', sucesso: true);
+      _mostrarSnackBar(
+        widget.redefinicao
+            ? 'Senha redefinida com sucesso!'
+            : 'Usuário criado com sucesso!',
+        sucesso: true,
+      );
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       String mensagem = 'Erro: ${e.message}';
@@ -162,20 +171,20 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
     final cor = erro
         ? Colors.red
         : sucesso
-            ? const Color(0xFF049F56)
-            : Colors.grey;
+        ? const Color(0xFF049F56)
+        : Colors.grey;
 
     final icone = erro
         ? Icons.error
         : sucesso
-            ? Icons.check_circle
-            : Icons.info;
+        ? Icons.check_circle
+        : Icons.info;
 
     final emoji = erro
         ? '❌'
         : sucesso
-            ? '✅'
-            : 'ℹ️';
+        ? '✅'
+        : 'ℹ️';
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -183,16 +192,12 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
           children: [
             Icon(icone, color: Colors.white),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text('$emoji $msg'),
-            ),
+            Expanded(child: Text('$emoji $msg')),
           ],
         ),
         backgroundColor: cor,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -223,24 +228,28 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                children: [
-                  const SizedBox(height: 20),
-                  // Header modernizado
-                  _buildHeader(),
-                  const SizedBox(height: 32),
-                  // Formulário principal
-                  _buildFormularioPrincipal(),
-                  const SizedBox(height: 24),
-                  // Seção de permissões
-                  _buildSecaoPermissoes(),
-                  const SizedBox(height: 32),
-                  // Botão de ação
-                  _buildBotaoAcao(),
-                  const SizedBox(height: 20),
-                ],
+            child: ResponsiveCenter(
+              padding: EdgeInsets.zero,
+              alignment: Alignment.topCenter,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  children: [
+                    const SizedBox(height: 20),
+                    // Header modernizado
+                    _buildHeader(),
+                    const SizedBox(height: 32),
+                    // Formulário principal
+                    _buildFormularioPrincipal(),
+                    const SizedBox(height: 24),
+                    // Seção de permissões
+                    _buildSecaoPermissoes(),
+                    const SizedBox(height: 32),
+                    // Botão de ação
+                    _buildBotaoAcao(),
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
           ),
@@ -290,7 +299,9 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
           ),
           const SizedBox(height: 20),
           Text(
-            widget.redefinicao ? '🔄 Redefinir Senha' : '👤 Cadastro de Usuário',
+            widget.redefinicao
+                ? '🔄 Redefinir Senha'
+                : '👤 Cadastro de Usuário',
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -356,7 +367,7 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          
+
           // Nome completo
           TextFormField(
             controller: _nomeCompletoController,
@@ -364,7 +375,9 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
             style: const TextStyle(color: Color(0xFF045D3A)),
             decoration: InputDecoration(
               labelText: 'Nome completo',
-              labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.7)),
+              labelStyle: TextStyle(
+                color: const Color(0xFF045D3A).withOpacity(0.7),
+              ),
               prefixIcon: const Icon(Icons.person, color: Color(0xFF049F56)),
               filled: true,
               fillColor: Colors.grey[50],
@@ -378,17 +391,22 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
-                borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                borderSide: const BorderSide(
+                  color: Color(0xFF049F56),
+                  width: 2,
+                ),
               ),
               disabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
                 borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
               ),
             ),
-            validator: (v) => v == null || v.trim().isEmpty ? 'Informe o nome completo' : null,
+            validator: (v) => v == null || v.trim().isEmpty
+                ? 'Informe o nome completo'
+                : null,
           ),
           const SizedBox(height: 16),
-          
+
           // Nome de usuário
           TextFormField(
             controller: _usernameController,
@@ -396,8 +414,13 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
             style: const TextStyle(color: Color(0xFF045D3A)),
             decoration: InputDecoration(
               labelText: 'Nome de usuário',
-              labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.7)),
-              prefixIcon: const Icon(Icons.account_circle, color: Color(0xFF049F56)),
+              labelStyle: TextStyle(
+                color: const Color(0xFF045D3A).withOpacity(0.7),
+              ),
+              prefixIcon: const Icon(
+                Icons.account_circle,
+                color: Color(0xFF049F56),
+              ),
               filled: true,
               fillColor: Colors.grey[50],
               border: OutlineInputBorder(
@@ -410,7 +433,10 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
-                borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                borderSide: const BorderSide(
+                  color: Color(0xFF049F56),
+                  width: 2,
+                ),
               ),
               disabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
@@ -427,7 +453,7 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
             },
           ),
           const SizedBox(height: 16),
-          
+
           // Senha
           TextFormField(
             controller: _senhaController,
@@ -435,7 +461,9 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
             style: const TextStyle(color: Color(0xFF045D3A)),
             decoration: InputDecoration(
               labelText: 'Senha',
-              labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.7)),
+              labelStyle: TextStyle(
+                color: const Color(0xFF045D3A).withOpacity(0.7),
+              ),
               prefixIcon: const Icon(Icons.lock, color: Color(0xFF049F56)),
               suffixIcon: IconButton(
                 icon: Icon(
@@ -456,13 +484,17 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
-                borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                borderSide: const BorderSide(
+                  color: Color(0xFF049F56),
+                  width: 2,
+                ),
               ),
             ),
-            validator: (v) => v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
+            validator: (v) =>
+                v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
           ),
           const SizedBox(height: 16),
-          
+
           // Confirmar senha
           TextFormField(
             controller: _confirmarSenhaController,
@@ -470,8 +502,13 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
             style: const TextStyle(color: Color(0xFF045D3A)),
             decoration: InputDecoration(
               labelText: 'Confirmar senha',
-              labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.7)),
-              prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF049F56)),
+              labelStyle: TextStyle(
+                color: const Color(0xFF045D3A).withOpacity(0.7),
+              ),
+              prefixIcon: const Icon(
+                Icons.lock_outline,
+                color: Color(0xFF049F56),
+              ),
               filled: true,
               fillColor: Colors.grey[50],
               border: OutlineInputBorder(
@@ -484,20 +521,26 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
-                borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                borderSide: const BorderSide(
+                  color: Color(0xFF049F56),
+                  width: 2,
+                ),
               ),
             ),
-            validator: (v) => v != _senhaController.text ? 'Senhas não conferem' : null,
+            validator: (v) =>
+                v != _senhaController.text ? 'Senhas não conferem' : null,
           ),
           const SizedBox(height: 16),
-          
+
           // Função
           DropdownButtonFormField<String>(
-            value: _funcaoSelecionada,
+            initialValue: _funcaoSelecionada,
             style: const TextStyle(color: Color(0xFF045D3A)),
             decoration: InputDecoration(
               labelText: 'Função',
-              labelStyle: TextStyle(color: const Color(0xFF045D3A).withOpacity(0.7)),
+              labelStyle: TextStyle(
+                color: const Color(0xFF045D3A).withOpacity(0.7),
+              ),
               prefixIcon: const Icon(Icons.work, color: Color(0xFF049F56)),
               filled: true,
               fillColor: Colors.grey[50],
@@ -511,7 +554,10 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
-                borderSide: const BorderSide(color: Color(0xFF049F56), width: 2),
+                borderSide: const BorderSide(
+                  color: Color(0xFF049F56),
+                  width: 2,
+                ),
               ),
             ),
             dropdownColor: Colors.white,
@@ -551,7 +597,13 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
                 );
               }).toList();
             },
-            onChanged: (v) => setState(() => _funcaoSelecionada = v!),
+            onChanged: (v) => setState(() {
+              _funcaoSelecionada = v!;
+              // Ao mudar função, sugerir o preset padrão
+              _permissoesSelecionadas
+                ..clear()
+                ..addAll(PermissionsHelper.forRole(_funcaoSelecionada));
+            }),
           ),
         ],
       ),
@@ -585,7 +637,11 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.security, color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.security,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -611,21 +667,25 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: _todasPermissoes.map((perm) {
-              final isSelected = _permissoesSelecionadas.contains(perm['chave']);
+            children: PermissionsHelper.allKeys().map((chave) {
+              final rotulo = PermissionsHelper.labels[chave] ?? chave;
+              final isSelected = _permissoesSelecionadas.contains(chave);
               return InkWell(
                 onTap: () {
                   setState(() {
                     if (isSelected) {
-                      _permissoesSelecionadas.remove(perm['chave']!);
+                      _permissoesSelecionadas.remove(chave);
                     } else {
-                      _permissoesSelecionadas.add(perm['chave']!);
+                      _permissoesSelecionadas.add(chave);
                     }
                   });
                 },
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     gradient: isSelected
                         ? const LinearGradient(
@@ -641,10 +701,14 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
                     ),
                   ),
                   child: Text(
-                    perm['label']!,
+                    rotulo,
                     style: TextStyle(
-                      color: isSelected ? Colors.white : const Color(0xFF045D3A),
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color: isSelected
+                          ? Colors.white
+                          : const Color(0xFF045D3A),
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
                       fontSize: 13,
                     ),
                   ),
@@ -692,8 +756,8 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
           _salvando
               ? 'Processando...'
               : widget.redefinicao
-                  ? '🔄 Redefinir Senha'
-                  : '👤 Cadastrar Usuário',
+              ? '🔄 Redefinir Senha'
+              : '👤 Cadastrar Usuário',
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,

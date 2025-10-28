@@ -5,13 +5,6 @@ import 'package:intl/intl.dart';
 
 /// Configuração de um parâmetro da análise de água
 class ParametroAnalise {
-  final String label;
-  final IconData icon;
-  final double minIdeal;
-  final double maxIdeal;
-  final String chaveFirestore;
-  final bool obrigatorio;
-
   const ParametroAnalise({
     required this.label,
     required this.icon,
@@ -20,6 +13,12 @@ class ParametroAnalise {
     required this.chaveFirestore,
     this.obrigatorio = false,
   });
+  final String label;
+  final IconData icon;
+  final double minIdeal;
+  final double maxIdeal;
+  final String chaveFirestore;
+  final bool obrigatorio;
 
   bool foraFaixa(double valor) {
     return valor < minIdeal || valor > maxIdeal;
@@ -30,15 +29,6 @@ class ParametroAnalise {
 
 /// Widget reutilizável para formulário de análise de água
 class AnaliseAguaForm extends StatefulWidget {
-  final Map<String, dynamic>? dadosIniciais;
-  final bool modoEdicao;
-  final String? codigoSelecionado;
-  final String? tipoSelecionado;
-  final DateTime? dataHoraInicial;
-  final Function(Map<String, dynamic> dados)? onSalvar;
-  final VoidCallback? onCancelar;
-  final bool mostrarSeletorDestino;
-
   const AnaliseAguaForm({
     super.key,
     this.dadosIniciais,
@@ -50,6 +40,15 @@ class AnaliseAguaForm extends StatefulWidget {
     this.onCancelar,
     this.mostrarSeletorDestino = true,
   });
+  final Map<String, dynamic>? dadosIniciais;
+  final bool modoEdicao;
+  final String? codigoSelecionado;
+  final String? tipoSelecionado;
+  final DateTime? dataHoraInicial;
+  // Callback agora explicitamente assíncrono para permitir aguardar e bloquear toques múltiplos
+  final Future<void> Function(Map<String, dynamic> dados)? onSalvar;
+  final VoidCallback? onCancelar;
+  final bool mostrarSeletorDestino;
 
   @override
   State<AnaliseAguaForm> createState() => _AnaliseAguaFormState();
@@ -68,6 +67,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
   // Controllers para todos os campos
   final Map<String, TextEditingController> _controllers = {};
   late TextEditingController _obsCtrl;
+  late TextEditingController _dataHoraCtrl;
 
   // Definição centralizada dos parâmetros
   static const List<ParametroAnalise> _parametros = [
@@ -95,7 +95,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
     ParametroAnalise(
       label: 'Temperatura (°C)',
       icon: Icons.thermostat,
-      minIdeal: 28.0,
+      minIdeal: 26.0,
       maxIdeal: 32.0,
       chaveFirestore: 'temperatura',
     ),
@@ -146,6 +146,8 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
   @override
   void initState() {
     super.initState();
+    // Inicializa a data/hora ANTES de criar os controllers para evitar LateInitializationError
+    _registroDt = widget.dataHoraInicial ?? DateTime.now();
     _inicializarControllers();
     _inicializarDados();
     _carregarDestinos();
@@ -158,10 +160,10 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       _controllers[param.chaveFirestore] = TextEditingController();
     }
     _obsCtrl = TextEditingController();
+    _dataHoraCtrl = TextEditingController(text: _formatDateTime(_registroDt));
   }
 
   void _inicializarDados() {
-    _registroDt = widget.dataHoraInicial ?? DateTime.now();
     _codigoSelecionado = widget.codigoSelecionado;
     _tipoSelecionado = widget.tipoSelecionado;
 
@@ -177,6 +179,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       _obsCtrl.text = dados['observacoes']?.toString() ?? '';
       if (dados['dataHora'] is Timestamp) {
         _registroDt = (dados['dataHora'] as Timestamp).toDate();
+        _dataHoraCtrl.text = _formatDateTime(_registroDt);
       }
     }
   }
@@ -186,21 +189,25 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       controller.addListener(_verificarCampos);
     }
     _obsCtrl.addListener(_verificarCampos);
+    _dataHoraCtrl.addListener(_verificarCampos);
   }
 
   void _verificarCampos() {
     setState(() {
-      _temCampoPreenchido = _controllers.values.any((c) => c.text.isNotEmpty) || 
-                           _obsCtrl.text.isNotEmpty;
+      _temCampoPreenchido =
+          _controllers.values.any((c) => c.text.isNotEmpty) ||
+          _obsCtrl.text.isNotEmpty;
     });
   }
 
   Future<void> _carregarDestinos() async {
     if (!widget.mostrarSeletorDestino) return;
-    
+
     try {
       // Carregar viveiros
-      final snapshotViveiros = await FirebaseFirestore.instance.collection('viveiros').get();
+      final snapshotViveiros = await FirebaseFirestore.instance
+          .collection('viveiros')
+          .get();
       final viveiros = <String, String>{};
       for (final doc in snapshotViveiros.docs) {
         final data = doc.data();
@@ -210,9 +217,11 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
           viveiros[codigo] = nome;
         }
       }
-      
+
       // Carregar berçários
-      final snapshotBercarios = await FirebaseFirestore.instance.collection('bercarios').get();
+      final snapshotBercarios = await FirebaseFirestore.instance
+          .collection('bercarios')
+          .get();
       final bercarios = <String, String>{};
       for (final doc in snapshotBercarios.docs) {
         final data = doc.data();
@@ -222,7 +231,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
           bercarios[codigo] = nome;
         }
       }
-      
+
       setState(() {
         _viveiros = viveiros;
         _bercarios = bercarios;
@@ -237,9 +246,11 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
   }
 
   Future<void> _onSubmit() async {
+    if (_saving) return; // evita cliques repetidos
     if (!_formKey.currentState!.validate()) return;
-    
-    if (widget.mostrarSeletorDestino && (_codigoSelecionado == null || _tipoSelecionado == null)) {
+
+    if (widget.mostrarSeletorDestino &&
+        (_codigoSelecionado == null || _tipoSelecionado == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecione o tipo e código do destino')),
       );
@@ -273,20 +284,23 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
 
     // Se não estamos em modo edição, adicionar dados do destino
     if (widget.mostrarSeletorDestino && !widget.modoEdicao) {
-      final nome = _tipoSelecionado == 'viveiro' 
+      final nome = _tipoSelecionado == 'viveiro'
           ? (_viveiros[_codigoSelecionado!] ?? '—')
           : (_bercarios[_codigoSelecionado!] ?? '—');
-          
+
       dadosParaSalvar['tipoDestino'] = _tipoSelecionado;
       dadosParaSalvar['codigo'] = _codigoSelecionado;
       dadosParaSalvar['nome'] = nome;
       dadosParaSalvar['criadoEm'] = Timestamp.now();
-      
+
       // Adicionar informações do usuário
       final user = FirebaseAuth.instance.currentUser;
       String nomeUsuario = '—';
       if (user != null) {
-        final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
+        final doc = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .get();
         nomeUsuario = doc.data()?['nome'] ?? '—';
       }
       dadosParaSalvar['registradoPor'] = nomeUsuario;
@@ -297,7 +311,10 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       final user = FirebaseAuth.instance.currentUser;
       String nomeUsuario = '—';
       if (user != null) {
-        final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
+        final doc = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .get();
         nomeUsuario = doc.data()?['nome'] ?? '—';
       }
       dadosParaSalvar['editadoPor'] = nomeUsuario;
@@ -311,63 +328,97 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
     }
 
     setState(() => _saving = true);
-
-    // Chamar callback de salvamento
-    if (widget.onSalvar != null) {
-      widget.onSalvar!(dadosParaSalvar);
+    try {
+      if (widget.onSalvar != null) {
+        await widget.onSalvar!(dadosParaSalvar);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-
-    setState(() => _saving = false);
   }
 
-  Future<bool> _mostrarDialogoForaFaixa(List<Map<String, dynamic>> foraFaixa) async {
+  Future<bool> _mostrarDialogoForaFaixa(
+    List<Map<String, dynamic>> foraFaixa,
+  ) async {
     final continuar = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Row(
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.red, size: 32),
             SizedBox(width: 8),
-            Text('Parâmetro(s) fora da faixa', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              'Parâmetro(s) fora da faixa',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Os seguintes parâmetros estão fora da faixa ideal:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Os seguintes parâmetros estão fora da faixa ideal:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 10),
-            ...foraFaixa.map((param) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  Icon(Icons.error, color: Colors.red.shade400, size: 20),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                        children: [
-                          TextSpan(text: '${param['nome']}: ', style: const TextStyle(color: Colors.red)),
-                          TextSpan(text: 'Valor: ${param['valor']}  '),
-                          TextSpan(text: '(Ideal: ${param['ideal']})', style: const TextStyle(color: Colors.teal)),
-                        ],
+            ...foraFaixa.map(
+              (param) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Icon(Icons.error, color: Colors.red.shade400, size: 20),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: '${param['nome']}: ',
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                            TextSpan(text: 'Valor: ${param['valor']}  '),
+                            TextSpan(
+                              text: '(Ideal: ${param['ideal']})',
+                              style: const TextStyle(color: Colors.teal),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            )),
+            ),
             const SizedBox(height: 16),
-            const Text('Deseja continuar mesmo assim?', style: TextStyle(fontWeight: FontWeight.w600)),
+            const Text(
+              'Deseja continuar mesmo assim?',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Continuar', style: TextStyle(color: Colors.white)),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              'Continuar',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -379,12 +430,20 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
     if (!_temCampoPreenchido) return true;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Descartar dados?'),
-        content: const Text('Há dados preenchidos. Tem certeza que deseja sair?'),
+        content: const Text(
+          'Há dados preenchidos. Tem certeza que deseja sair?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sair')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Sair'),
+          ),
         ],
       ),
     );
@@ -397,6 +456,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       controller.dispose();
     }
     _obsCtrl.dispose();
+    _dataHoraCtrl.dispose();
     super.dispose();
   }
 
@@ -405,7 +465,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
     final text = controller.text;
     final valor = double.tryParse(text);
     final fora = valor != null && param.foraFaixa(valor);
-    
+
     Color? fillColor;
     Color? borderColor;
     if (fora) {
@@ -447,7 +507,10 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
           padding: const EdgeInsets.only(top: 4, left: 4),
           child: Text(
             'Faixa ideal: ${param.faixaIdealTexto} Fora disso, notifique o supervisor.',
-            style: TextStyle(fontSize: 15, color: fora ? Colors.red : Colors.teal),
+            style: TextStyle(
+              fontSize: 15,
+              color: fora ? Colors.red : Colors.teal,
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -461,7 +524,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
     return Column(
       children: [
         DropdownButtonFormField<String>(
-          value: _tipoSelecionado,
+          initialValue: _tipoSelecionado,
           decoration: const InputDecoration(
             labelText: 'Tipo de Destino',
             prefixIcon: Icon(Icons.category),
@@ -478,32 +541,35 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-          value: _codigoSelecionado,
+          initialValue: _codigoSelecionado,
           decoration: const InputDecoration(
             labelText: 'Código',
             prefixIcon: Icon(Icons.water_damage_outlined),
           ),
           items: (() {
             Map<String, String> destinosParaMostrar = {};
-            
+
             if (_tipoSelecionado == 'viveiro') {
               destinosParaMostrar = _viveiros;
             } else if (_tipoSelecionado == 'bercario') {
               destinosParaMostrar = _bercarios;
             }
-            
+
             final destinosOrdenados = destinosParaMostrar.entries.toList()
               ..sort((a, b) => a.key.compareTo(b.key));
-            
+
             return destinosOrdenados
-                .map((e) => DropdownMenuItem(
-                      value: e.key,
-                      child: Text('${e.value} (cód: ${e.key})'),
-                    ))
+                .map(
+                  (e) => DropdownMenuItem(
+                    value: e.key,
+                    child: Text('${e.value} (cód: ${e.key})'),
+                  ),
+                )
                 .toList();
           })(),
           onChanged: (value) => setState(() => _codigoSelecionado = value),
-          validator: (v) => v == null || v.isEmpty ? 'Selecione o código' : null,
+          validator: (v) =>
+              v == null || v.isEmpty ? 'Selecione o código' : null,
         ),
         const SizedBox(height: 12),
       ],
@@ -512,23 +578,36 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _confirmarSaida,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldPop = await _confirmarSaida();
+        if (!mounted) return;
+        if (shouldPop) {
+          if (!mounted) return;
+          Navigator.of(context).pop(result);
+        }
+      },
       child: Form(
         key: _formKey,
         child: ListView(
           children: [
             _buildSeletorDestino(),
-            
+
             const Divider(thickness: 2, height: 32),
             const Center(
               child: Text(
                 'Parâmetros Físicos',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal,
+                ),
               ),
             ),
             const SizedBox(height: 8),
-            
+
             // Parâmetros físicos
             _buildCampoParametro(_parametros[0]), // pH
             _buildCampoParametro(_parametros[1]), // Oxigênio
@@ -536,22 +615,26 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
             _buildCampoParametro(_parametros[3]), // Temperatura
             _buildCampoParametro(_parametros[4]), // Turbidez
             _buildCampoParametro(_parametros[5]), // Saturação O2
-            
+
             const Divider(thickness: 2, height: 32),
             const Center(
               child: Text(
                 'Parâmetros Químicos',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal,
+                ),
               ),
             ),
             const SizedBox(height: 8),
-            
+
             // Parâmetros químicos
             _buildCampoParametro(_parametros[6]), // Salinidade
             _buildCampoParametro(_parametros[7]), // Cálcio
             _buildCampoParametro(_parametros[8]), // Nitrito
             _buildCampoParametro(_parametros[9]), // Amônia
-            
+
             TextFormField(
               controller: _obsCtrl,
               maxLines: 2,
@@ -561,11 +644,14 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
               ),
             ),
             const SizedBox(height: 12),
-            
+
             TextFormField(
+              controller: _dataHoraCtrl,
               readOnly: true,
               decoration: InputDecoration(
-                labelText: widget.modoEdicao ? 'Data/Hora do Registro' : 'Data/Hora do Registro *',
+                labelText: widget.modoEdicao
+                    ? 'Data/Hora do Registro'
+                    : 'Data/Hora do Registro *',
                 prefixIcon: const Icon(Icons.calendar_today),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.access_time),
@@ -582,28 +668,39 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
                         initialTime: TimeOfDay.fromDateTime(_registroDt),
                       );
                       if (tm != null) {
-                        setState(() => _registroDt = DateTime(dt.year, dt.month, dt.day, tm.hour, tm.minute));
+                        setState(() {
+                          _registroDt = DateTime(
+                            dt.year,
+                            dt.month,
+                            dt.day,
+                            tm.hour,
+                            tm.minute,
+                          );
+                          _dataHoraCtrl.text = _formatDateTime(_registroDt);
+                        });
                       }
                     }
                   },
                 ),
-                hintText: _formatDateTime(_registroDt),
               ),
             ),
             const SizedBox(height: 24),
-            
+
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: _saving ? null : () async {
-                      if (widget.onCancelar != null) {
-                        widget.onCancelar!();
-                      } else {
-                        final sair = await _confirmarSaida();
-                        if (sair) Navigator.of(context).pop();
-                      }
-                    },
+                    onPressed: _saving
+                        ? null
+                        : () async {
+                            if (widget.onCancelar != null) {
+                              widget.onCancelar!();
+                            } else {
+                              final sair = await _confirmarSaida();
+                              if (!mounted) return;
+                              if (sair) Navigator.of(context).pop();
+                            }
+                          },
                     child: const Text('Cancelar'),
                   ),
                 ),
@@ -611,9 +708,11 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _saving ? null : _onSubmit,
-                    child: _saving 
-                        ? const CircularProgressIndicator() 
-                        : Text(widget.modoEdicao ? 'Salvar Alterações' : 'Salvar'),
+                    child: _saving
+                        ? const CircularProgressIndicator()
+                        : Text(
+                            widget.modoEdicao ? 'Salvar Alterações' : 'Salvar',
+                          ),
                   ),
                 ),
               ],

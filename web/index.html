@@ -31,8 +31,26 @@
 
   <title>viveiro_plus</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // Remove qualquer Service Worker antigo que possa estar servindo assets antigos
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (var registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+  </script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Carrega o bootstrap com cache-busting para evitar versão antiga
+    (function() {
+      var s = document.createElement('script');
+      s.src = 'flutter_bootstrap.js?v=' + Date.now();
+      s.async = true;
+      document.body.appendChild(s);
+    })();
+  </script>
 </body>
 </html>

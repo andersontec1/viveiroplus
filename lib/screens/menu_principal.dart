@@ -3,25 +3,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-
-import 'package:viveiro_plus/screens/tela_arracoador.dart' as arracoador;
 import 'package:viveiro_plus/screens/tela_listagem_registros.dart';
 import 'package:viveiro_plus/screens/tela_listagem_racao.dart';
 import 'package:viveiro_plus/screens/tela_listagem_viveiros.dart';
 import 'package:viveiro_plus/screens/tela_gerenciar_usuarios.dart';
 import 'package:viveiro_plus/screens/tela_listagem_bercarios.dart';
 
-import 'package:viveiro_plus/screens/tela_relatorios.dart';
+import 'package:viveiro_plus/screens/tela_relatorio_analise_agua.dart';
 import 'package:viveiro_plus/screens/tela_login.dart';
-import 'package:viveiro_plus/screens/pendencias.dart';
 import 'package:viveiro_plus/screens/tela_ciclos_viveiro.dart';
-import 'package:viveiro_plus/screens/tela_resumo_detalhado.dart';
 import 'package:viveiro_plus/screens/tela_painel_web.dart';
-import 'package:viveiro_plus/screens/tela_Insumos.dart';
-import 'package:viveiro_plus/screens/tela_estoque_insumos.dart';
 import 'package:viveiro_plus/screens/tela_biomassa.dart';
-import 'package:viveiro_plus/screens/tela_despesca.dart';
+import 'package:viveiro_plus/screens/tela_insumos_hub.dart';
+import 'package:viveiro_plus/screens/tela_entrega_racao_fornecedor.dart';
+
 import '../widgets/degrade_fundo.dart' as degrade_widget;
+import '../helpers/permissions_helper.dart';
+import 'package:viveiro_plus/widgets/responsive_center.dart';
 
 class MenuPrincipal extends StatefulWidget {
   const MenuPrincipal({super.key, this.resumoExpandido = false});
@@ -39,17 +37,17 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
 
   // Descrições informativas para cada funcionalidade
   final Map<String, String> _descricoesFuncionalidades = {
-    'Análise da água': 'Registre parâmetros de qualidade como pH, oxigênio e temperatura',
-    'Registros de análise': 'Consulte histórico completo das análises de água realizadas',
-    'Registro de ração': 'Controle a alimentação dos camarões e quantidade de ração',
-    'Histórico de ração': 'Acompanhe o consumo de ração por viveiro e período',
+    'Análise da água':
+        'Registre parâmetros de qualidade como pH, oxigênio e temperatura',
+    'Registros de análise':
+        'Consulte histórico completo das análises de água realizadas',
+    'Registros de ração':
+        'Controle e acompanhe toda a alimentação dos camarões',
     'Listar berçários': 'Gerencie informações dos berçários de pós-larvas',
     'Listar viveiros': 'Visualize e administre todos os viveiros de engorda',
-    'Pendências': 'Acompanhe tarefas pendentes e alertas do sistema',
     'Gerenciar usuários': 'Controle acesso e permissões dos funcionários',
-    'Relatórios': 'Gere relatórios detalhados de produção e análises',
+    'Relatórios (Água)': 'Análises de água com estatísticas e exportação',
     'Ciclos do viveiro': 'Monitore ciclos produtivos e cronogramas de cultivo',
-    'Resumo detalhado': 'Visão geral dos indicadores e métricas do dia',
     'Painel web': 'Acesse dashboard executivo com gráficos e estatísticas',
     'Insumos': 'Cadastre e gerencie insumos utilizados na produção',
     'Estoque de insumos': 'Controle entrada, saída e níveis de estoque',
@@ -57,63 +55,25 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
     'Despesca': 'Gerencie processo de colheita e produção final',
   };
 
-  // Permissões padrão por função (compatibilidade)
-  final Map<String, List<String>> permissoesPorFuncao = {
-    'arraçoador': [
-      'registro_racao',
-      'historico_racao',
-      'listar_bercarios',
-      'listar_viveiros',
-    ],
-    'registrador': [
-      'analise_agua',
-      'registros_analise',
-      'listar_bercarios',
-      'listar_viveiros',
-    ],
-    'supervisor': [
-      'analise_agua',
-      'registros_analise',
-      'registro_racao',
-      'historico_racao',
-      'listar_bercarios',
-      'listar_viveiros',
-    ],
-    'gerente': [
-      'analise_agua',
-      'registros_analise',
-      'registro_racao',
-      'historico_racao',
-      'listar_bercarios',
-      'listar_viveiros',
-      'relatorios',
-      'editar_viveiro',
-      'cadastro_viveiro',
-    ],
-    'admin': [
-      'analise_agua',
-      'registros_analise',
-      'registro_racao',
-      'historico_racao',
-      'listar_bercarios',
-      'listar_viveiros',
-      'relatorios',
-      'editar_viveiro',
-      'cadastro_viveiro',
-      'usuarios',
-      'gerenciar_usuarios',
-    ],
-  };
+  // Mapeamento centralizado moveu para PermissionsHelper
 
   bool temPermissao(String chave) {
-    // Se o usuário tem o campo permissoes, usa ele; senão, usa permissoesPorFuncao herdadas da funcao
+    if (_funcaoUsuario == 'admin') return true;
     if (_permissoes.isNotEmpty) {
-      return _permissoes.contains(chave);
+      // _permissoes pode conter aliases antigos; normaliza e verifica
+      final normalized = PermissionsHelper.normalize(_permissoes);
+      return PermissionsHelper.contains(normalized, chave);
     } else if (_funcaoUsuario != null) {
-      final permissoesFuncao = permissoesPorFuncao[_funcaoUsuario!] ?? [];
-      return permissoesFuncao.contains(chave) || _funcaoUsuario == 'admin';
+      final permissoesFuncao = PermissionsHelper.forRole(_funcaoUsuario);
+      return PermissionsHelper.contains(permissoesFuncao, chave);
     }
     return false;
+  }
+
+  // Algumas contas possuem a permissão como 'visualizar_relatorios' (SecurityHelper)
+  // enquanto o menu usava 'relatorios'. Este helper aceita ambas.
+  bool _temPermissaoRelatorios() {
+    return temPermissao('relatorios');
   }
 
   @override
@@ -126,18 +86,17 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
   Future<void> _buscarUsuario() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .get();
       if (doc.exists) {
         final data = doc.data() ?? {};
         setState(() {
           _nomeUsuario = data['nome'] ?? 'Usuário';
           _funcaoUsuario = data['funcao'] ?? 'registrador';
           final permissoesFirestore = data['permissoes'];
-          if (permissoesFirestore is List) {
-            _permissoes = permissoesFirestore.map((e) => e.toString()).toList();
-          } else {
-            _permissoes = [];
-          }
+          _permissoes = PermissionsHelper.normalize(permissoesFirestore);
         });
       }
     }
@@ -158,7 +117,13 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
     }
   }
 
-  Widget _buildCard({required String texto, required VoidCallback onTap, IconData? icone, String? customIcon, String? descricao}) {
+  Widget _buildCard({
+    required String texto,
+    required VoidCallback onTap,
+    IconData? icone,
+    String? customIcon,
+    String? descricao,
+  }) {
     return Container(
       height: 100,
       margin: const EdgeInsets.only(bottom: 16),
@@ -248,19 +213,16 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                     ],
                   ),
                 ),
-                
+
                 // Container do ícone à direita
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     // Gradiente do ícone mais vibrante
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFF049F56),
-                        const Color(0xFF045D3A),
-                      ],
+                      colors: [Color(0xFF049F56), Color(0xFF045D3A)],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
@@ -274,14 +236,14 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                   ),
                   child: customIcon != null
                       ? Image.asset(
-                          customIcon, 
-                          width: 28, 
+                          customIcon,
+                          width: 28,
                           height: 28,
                           color: Colors.white,
                         )
                       : Icon(
-                          icone ?? Icons.help_outline, 
-                          size: 28, 
+                          icone ?? Icons.help_outline,
+                          size: 28,
                           color: Colors.white,
                         ),
                 ),
@@ -294,16 +256,18 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
   }
 
   // Helper para montar uma categoria expansível com ícone
-  Widget _categoriaExpansivel(String titulo, List<Widget> conteudo, {bool inicialmenteAberto = false, IconData? icone}) {
+  Widget _categoriaExpansivel(
+    String titulo,
+    List<Widget> conteudo, {
+    bool inicialmenteAberto = false,
+    IconData? icone,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.4),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.6),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.6), width: 1),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(
@@ -320,7 +284,7 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
           ),
         ),
         child: ExpansionTile(
-          leading: icone != null 
+          leading: icone != null
               ? Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -334,18 +298,14 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    icone, 
-                    color: const Color(0xFF045D3A), 
-                    size: 24,
-                  ),
+                  child: Icon(icone, color: const Color(0xFF045D3A), size: 24),
                 )
               : null,
           title: Text(
-            titulo, 
+            titulo,
             style: const TextStyle(
-              fontSize: 18, 
-              fontWeight: FontWeight.bold, 
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
               color: Color(0xFF045D3A),
               letterSpacing: 0.5,
             ),
@@ -362,155 +322,332 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
   }
 
   List<Widget> _montarGridCategoria(List<Map<String, dynamic>> botoes) {
-    return botoes.map((btn) => _buildCard(
-      icone: btn.containsKey('icone') ? btn['icone'] as IconData? : null,
-      customIcon: btn.containsKey('customIcon') ? btn['customIcon'] as String? : null,
-      texto: btn['texto'] as String,
-      onTap: btn['onTap'] as VoidCallback,
-      descricao: _descricoesFuncionalidades[btn['texto'] as String],
-    )).toList();
+    return botoes
+        .map(
+          (btn) => _buildCard(
+            icone: btn.containsKey('icone') ? btn['icone'] as IconData? : null,
+            customIcon: btn.containsKey('customIcon')
+                ? btn['customIcon'] as String?
+                : null,
+            texto: btn['texto'] as String,
+            onTap: btn['onTap'] as VoidCallback,
+            descricao: _descricoesFuncionalidades[btn['texto'] as String],
+          ),
+        )
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> categorias = [];
-    if (temPermissao('registros_analise')) {
-      categorias.add(_categoriaExpansivel(
-        'Análises de Água',
-        _montarGridCategoria([
-          {
-            'icone': Icons.water_drop,
-            'texto': 'Análises de Água',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaListagemRegistros())),
-          },
-        ]),
-        inicialmenteAberto: true,
-        icone: Icons.water_drop,
-      ));
-    }
-    if (temPermissao('registro_racao') || temPermissao('historico_racao')) {
-      categorias.add(_categoriaExpansivel(
-        'Rações',
-        _montarGridCategoria([
-          if (temPermissao('registro_racao'))
-            {
-              'icone': Icons.set_meal,
-              'texto': 'Registro de Ração',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const arracoador.TelaArracoador())),
+    void abrirNotificacoesEstoqueBaixo() {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (ctx) {
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.6,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            builder: (context, scrollController) {
+              return Column(
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 48,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Estoque baixo',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('insumos')
+                          .where('estoque_baixo', isEqualTo: true)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Center(child: Text('Erro: ${snapshot.error}'));
+                        }
+                        if (!snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        final docs = snapshot.data!.docs
+                          ..sort((a, b) {
+                            final an =
+                                ((a.data() as Map<String, dynamic>)['nome'] ??
+                                        '')
+                                    .toString()
+                                    .toLowerCase();
+                            final bn =
+                                ((b.data() as Map<String, dynamic>)['nome'] ??
+                                        '')
+                                    .toString()
+                                    .toLowerCase();
+                            return an.compareTo(bn);
+                          });
+                        if (docs.isEmpty) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Text('Nenhum insumo com estoque baixo.'),
+                            ),
+                          );
+                        }
+                        return ListView.builder(
+                          controller: scrollController,
+                          itemCount: docs.length,
+                          itemBuilder: (context, index) {
+                            final d = docs[index];
+                            final data = d.data() as Map<String, dynamic>;
+                            final nome = (data['nome'] ?? '-') as String;
+                            final estoque = (data['estoque'] ?? 0).toString();
+                            final minimo = (data['estoque_minimo'] ?? 0)
+                                .toString();
+                            return ListTile(
+                              leading: const CircleAvatar(
+                                backgroundColor: Color(0xFFFFE5E5),
+                                child: Icon(
+                                  Icons.inventory_2,
+                                  color: Colors.red,
+                                ),
+                              ),
+                              title: Text(
+                                nome,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                'Estoque: $estoque • Mínimo: $minimo',
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.open_in_new),
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const TelaInsumosHub(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              );
             },
-          if (temPermissao('historico_racao'))
-            {
-              'icone': Icons.history,
-              'texto': 'Histórico de Ração',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaListagemRacao())),
-            },
-        ]),
-        icone: Icons.set_meal,
-      ));
+          );
+        },
+      );
     }
 
-    if (temPermissao('cadastro_viveiro') || temPermissao('editar_viveiro') || temPermissao('listar_viveiros') || temPermissao('listar_bercarios')) {
-      categorias.add(_categoriaExpansivel(
-        'Viveiros e Berçários',
-        _montarGridCategoria([
-          if (temPermissao('listar_viveiros'))
+    final List<Widget> categorias = [];
+    if (temPermissao('registros_analise')) {
+      categorias.add(
+        _categoriaExpansivel(
+          'Análises de Água',
+          _montarGridCategoria([
             {
-              'icone': Icons.water,
-              'texto': 'Viveiros',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => TelaListagemViveiros(funcaoUsuario: _funcaoUsuario))),
+              'icone': Icons.water_drop,
+              'texto': 'Análises de Água',
+              'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TelaListagemRegistros(),
+                ),
+              ),
             },
-          if (temPermissao('listar_bercarios'))
-            {
-              'icone': Icons.spa,
-              'texto': 'Berçários',
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaListagemBercarios())),
-            },
-        ]),
-        icone: Icons.eco,
-      ));
+          ]),
+          inicialmenteAberto: true,
+          icone: Icons.water_drop,
+        ),
+      );
     }
-    if (temPermissao('relatorios')) {
-      categorias.add(_categoriaExpansivel(
-        'Insumos e Suprimentos',
-        _montarGridCategoria([
-          {
-            'icone': Icons.medical_services,
-            'texto': 'Cadastro de Insumos',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaInsumos())),
-          },
-          {
-            'icone': Icons.inventory_2_rounded,
-            'texto': 'Estoque de Insumos',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaEstoqueInsumos())),
-          },
-        ]),
-        icone: Icons.medical_services,
-      ));
+    if (temPermissao('registro_racao') || temPermissao('historico_racao')) {
+      categorias.add(
+        _categoriaExpansivel(
+          'Rações',
+          _montarGridCategoria([
+            {
+              'icone': Icons.set_meal,
+              'texto': 'Registros de Ração',
+              'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TelaListagemRacao()),
+              ),
+            },
+          ]),
+          icone: Icons.set_meal,
+        ),
+      );
+    }
+
+    if (temPermissao('cadastro_viveiro') ||
+        temPermissao('editar_viveiro') ||
+        temPermissao('listar_viveiros') ||
+        temPermissao('listar_bercarios')) {
+      categorias.add(
+        _categoriaExpansivel(
+          'Viveiros e Berçários',
+          _montarGridCategoria([
+            if (temPermissao('listar_viveiros'))
+              {
+                'icone': Icons.water,
+                'texto': 'Viveiros',
+                'onTap': () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        TelaListagemViveiros(funcaoUsuario: _funcaoUsuario),
+                  ),
+                ),
+              },
+            if (temPermissao('listar_bercarios'))
+              {
+                'icone': Icons.spa,
+                'texto': 'Berçários',
+                'onTap': () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TelaListagemBercarios(),
+                  ),
+                ),
+              },
+          ]),
+          icone: Icons.eco,
+        ),
+      );
+    }
+    if (_temPermissaoRelatorios()) {
+      categorias.add(
+        _categoriaExpansivel(
+          'Insumos e Suprimentos',
+          _montarGridCategoria([
+            {
+              'icone': Icons.inventory,
+              'texto': 'Controle de Insumos',
+              'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TelaInsumosHub()),
+              ),
+            },
+            if (temPermissao('registrar_entrega_racao') ||
+                temPermissao('ver_estoque_racao'))
+              {
+                'icone': Icons.local_shipping_rounded,
+                'texto': 'Entrega de Ração',
+                'onTap': () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TelaEntregaRacaoFornecedor(),
+                  ),
+                ),
+              },
+          ]),
+          icone: Icons.medical_services,
+        ),
+      );
     }
     if (temPermissao('listar_viveiros')) {
-      categorias.add(_categoriaExpansivel(
-        'Gestão de Ciclos',
-        _montarGridCategoria([
-          {
-            'icone': Icons.history_toggle_off,
-            'texto': 'Ciclos por Viveiro',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaCiclosViveiro())),
-          },
-          {
-            'icone': Icons.monitor_weight,
-            'texto': 'Cálculo de Biomassa',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaBiomassa())),
-          },
-          {
-            'icone': Icons.set_meal,
-            'texto': 'Controle de Despesca',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaDespesca())),
-          },
-        ]),
-        icone: Icons.history_toggle_off,
-      ));
+      categorias.add(
+        _categoriaExpansivel(
+          'Gestão de Ciclos',
+          _montarGridCategoria([
+            {
+              'icone': Icons.history_toggle_off,
+              'texto': 'Ciclos por Viveiro',
+              'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TelaCiclosViveiro()),
+              ),
+            },
+            {
+              'icone': Icons.monitor_weight,
+              'texto': 'Cálculo de Biomassa',
+              'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TelaBiomassa()),
+              ),
+            },
+            {
+              'icone': Icons.set_meal,
+              'texto': 'Controle de Despesca',
+              'onTap': () =>
+                  Navigator.pushNamed(context, '/despesca_dashboard'),
+            },
+          ]),
+          icone: Icons.history_toggle_off,
+        ),
+      );
     }
     if (temPermissao('gerenciar_usuarios')) {
-      categorias.add(_categoriaExpansivel(
-        'Usuários',
-        _montarGridCategoria([
-          {
-            'icone': Icons.people,
-            'texto': 'Gerenciar Usuários',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaGerenciarUsuarios())),
-          },
-        ]),
-        icone: Icons.people,
-      ));
+      categorias.add(
+        _categoriaExpansivel(
+          'Usuários',
+          _montarGridCategoria([
+            {
+              'icone': Icons.people,
+              'texto': 'Gerenciar Usuários',
+              'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TelaGerenciarUsuarios(),
+                ),
+              ),
+            },
+          ]),
+          icone: Icons.people,
+        ),
+      );
     }
-    // Relatórios sempre por último
-    if (temPermissao('relatorios')) {
-      categorias.add(_categoriaExpansivel(
-        'Relatórios',
-        _montarGridCategoria([
-          {
-            'icone': Icons.bar_chart,
-            'texto': 'Relatório por Horário',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaRelatorios())),
-          },
-          {
-            'icone': Icons.summarize,
-            'texto': 'Resumo Diário',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaResumoDetalhado())),
-          },
-          {
-            'icone': Icons.warning_amber_rounded,
-            'texto': 'Pendências',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaPendencias())),
-          },          
-          {
-            'icone': Icons.dashboard_customize,
-            'texto': 'Painel Web',
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaPainelWeb())),
-          },
-        ]),
-        icone: Icons.bar_chart,
-      ));
+    // Categoria de relatórios e indicadores finais
+    if (_temPermissaoRelatorios()) {
+      categorias.add(
+        _categoriaExpansivel(
+          'Relatórios e Indicadores',
+          _montarGridCategoria([
+            {
+              'icone': Icons.water_rounded,
+              'texto': 'Relatórios (Água)',
+              'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TelaRelatorioAnaliseAgua(),
+                ),
+              ),
+            },
+            {
+              'icone': Icons.dashboard_customize,
+              'texto': 'Painel Web',
+              'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TelaPainelWeb()),
+              ),
+            },
+          ]),
+          icone: Icons.bar_chart,
+        ),
+      );
     }
     return Scaffold(
       drawer: Drawer(
@@ -518,12 +655,9 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
         child: Column(
           children: [
             DrawerHeader(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF049F56),
-                    const Color(0xFF045D3A),
-                  ],
+                  colors: [Color(0xFF049F56), Color(0xFF045D3A)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -557,7 +691,8 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                   ),
                   if (_funcaoUsuario != null)
                     Text(
-                      _funcaoUsuario![0].toUpperCase() + _funcaoUsuario!.substring(1),
+                      _funcaoUsuario![0].toUpperCase() +
+                          _funcaoUsuario!.substring(1),
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 14,
@@ -626,275 +761,369 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
             style: const TextStyle(fontWeight: FontWeight.bold),
             child: Column(
               children: [
+                // Barra superior com sino de notificações de estoque baixo
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 8),
+                      const Spacer(),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('insumos')
+                            .where('estoque_baixo', isEqualTo: true)
+                            .limit(1)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          final temBaixo =
+                              snapshot.hasData &&
+                              snapshot.data!.docs.isNotEmpty;
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              IconButton(
+                                tooltip: 'Notificações de estoque',
+                                onPressed: abrirNotificacoesEstoqueBaixo,
+                                icon: const Icon(
+                                  Icons.notifications_outlined,
+                                  color: Color(0xFF045D3A),
+                                ),
+                              ),
+                              if (temBaixo)
+                                Positioned(
+                                  right: 8,
+                                  top: 8,
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(
-                          child: Column(
-                            children: [
-                              // Container moderno para o avatar
-                              Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      const Color(0xFF049F56),
-                                      const Color(0xFF045D3A),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF049F56).withOpacity(0.4),
-                                      blurRadius: 20,
-                                      spreadRadius: 5,
-                                      offset: const Offset(0, 8),
+                    child: ResponsiveCenter(
+                      alignment: Alignment.topCenter,
+                      // usa breakpoints padrão para largura
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Center(
+                            child: Column(
+                              children: [
+                                // Container moderno para o avatar
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF049F56),
+                                        Color(0xFF045D3A),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
                                     ),
-                                  ],
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
                                     shape: BoxShape.circle,
-                                  ),
-                                  child: ClipOval(
-                                    child: Image.asset(
-                                      'assets/images/mascote.png',
-                                      width: 80,
-                                      height: 80,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              
-                              // Card de boas-vindas
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.white.withOpacity(0.9),
-                                      Colors.white.withOpacity(0.7),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.5),
-                                    width: 1.5,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.08),
-                                      blurRadius: 15,
-                                      spreadRadius: 2,
-                                      offset: const Offset(0, 5),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      _nomeUsuario != null ? 'Olá, $_nomeUsuario! 👋' : 'Bem-vindo! 👋',
-                                      style: const TextStyle(
-                                        fontSize: 22, 
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF045D3A),
-                                        letterSpacing: 0.5,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    if (_funcaoUsuario != null) ...[
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              const Color(0xFF049F56).withOpacity(0.2),
-                                              const Color(0xFF045D3A).withOpacity(0.1),
-                                            ],
-                                          ),
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                        child: Text(
-                                          '${_funcaoUsuario![0].toUpperCase()}${_funcaoUsuario!.substring(1)}',
-                                          style: const TextStyle(
-                                            fontSize: 14, 
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF045D3A),
-                                            letterSpacing: 0.3,
-                                          ),
-                                        ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFF049F56,
+                                        ).withOpacity(0.4),
+                                        blurRadius: 20,
+                                        spreadRadius: 5,
+                                        offset: const Offset(0, 8),
                                       ),
                                     ],
-                                  ],
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: ClipOval(
+                                      child: Image.asset(
+                                        'assets/images/mascote.png',
+                                        width: 80,
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 30),
-                        ...categorias,
-                        // Botão de logout modernizado
-                        const SizedBox(height: 32),
-                        Center(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.red.withOpacity(0.2),
-                                  blurRadius: 15,
-                                  spreadRadius: 2,
-                                  offset: const Offset(0, 5),
+                                const SizedBox(height: 16),
+
+                                // Card de boas-vindas
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.white.withOpacity(0.9),
+                                        Colors.white.withOpacity(0.7),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.5),
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.08),
+                                        blurRadius: 15,
+                                        spreadRadius: 2,
+                                        offset: const Offset(0, 5),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        _nomeUsuario != null
+                                            ? 'Olá, $_nomeUsuario! 👋'
+                                            : 'Bem-vindo! 👋',
+                                        style: const TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF045D3A),
+                                          letterSpacing: 0.5,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      if (_funcaoUsuario != null) ...[
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                const Color(
+                                                  0xFF049F56,
+                                                ).withOpacity(0.2),
+                                                const Color(
+                                                  0xFF045D3A,
+                                                ).withOpacity(0.1),
+                                              ],
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${_funcaoUsuario![0].toUpperCase()}${_funcaoUsuario!.substring(1)}',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF045D3A),
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
-                              label: const Text(
-                                'Sair da Conta', 
-                                style: TextStyle(
-                                  color: Colors.white, 
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  letterSpacing: 0.5,
-                                ),
+                          ),
+                          const SizedBox(height: 30),
+                          ...categorias,
+                          // Botão de logout modernizado
+                          const SizedBox(height: 32),
+                          Center(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withOpacity(0.2),
+                                    blurRadius: 15,
+                                    spreadRadius: 2,
+                                    offset: const Offset(0, 5),
+                                  ),
+                                ],
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.shade400,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
+                              child: ElevatedButton.icon(
+                                icon: const Icon(
+                                  Icons.logout_rounded,
+                                  color: Colors.white,
+                                  size: 20,
                                 ),
-                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                              ),
-                              onPressed: () async {
-                                final sair = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    backgroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    title: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: Colors.orange.shade100,
-                                            borderRadius: BorderRadius.circular(12),
+                                label: const Text(
+                                  'Sair da Conta',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red.shade400,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 32,
+                                    vertical: 16,
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  final sair = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      backgroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      title: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.shade100,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Icon(
+                                              Icons.help_outline_rounded,
+                                              color: Colors.orange.shade600,
+                                              size: 24,
+                                            ),
                                           ),
-                                          child: Icon(
-                                            Icons.help_outline_rounded,
-                                            color: Colors.orange.shade600,
-                                            size: 24,
+                                          const SizedBox(width: 12),
+                                          const Text(
+                                            'Confirmação',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF045D3A),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      content: const Text(
+                                        'Deseja realmente sair da sua conta?',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Color(0xFF045D3A),
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, false),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 20,
+                                              vertical: 12,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Cancelar',
+                                            style: TextStyle(
+                                              color: Colors.grey,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        const Text(
-                                          'Confirmação',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF045D3A),
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.red.shade400,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 20,
+                                              vertical: 12,
+                                            ),
+                                          ),
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, true),
+                                          child: const Text(
+                                            'Sair',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                    content: const Text(
-                                      'Deseja realmente sair da sua conta?',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Color(0xFF045D3A),
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(ctx, false),
-                                        style: TextButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                        ),
-                                        child: const Text(
-                                          'Cancelar',
-                                          style: TextStyle(
-                                            color: Colors.grey,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red.shade400,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                        ),
-                                        onPressed: () => Navigator.pop(ctx, true),
-                                        child: const Text(
-                                          'Sair', 
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (sair == true) _deslogar();
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        
-                        // Badge de versão modernizado
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.7),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.5),
-                                width: 1,
+                                  );
+                                  if (sair == true) _deslogar();
+                                },
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  size: 16,
-                                  color: const Color(0xFF045D3A).withOpacity(0.6),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Badge de versão modernizado
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.7),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.5),
+                                  width: 1,
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Versão $_versaoApp',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: const Color(0xFF045D3A).withOpacity(0.7),
-                                    fontWeight: FontWeight.w500,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    size: 16,
+                                    color: const Color(
+                                      0xFF045D3A,
+                                    ).withOpacity(0.6),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Versão $_versaoApp',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: const Color(
+                                        0xFF045D3A,
+                                      ).withOpacity(0.7),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

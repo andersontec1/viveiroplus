@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
 
 class ModernGridLayout extends StatelessWidget {
-  final List<Widget> children;
-  final int crossAxisCount;
-  final double mainAxisSpacing;
-  final double crossAxisSpacing;
-
   const ModernGridLayout({
     Key? key,
     required this.children,
@@ -13,16 +8,22 @@ class ModernGridLayout extends StatelessWidget {
     this.mainAxisSpacing = 16,
     this.crossAxisSpacing = 16,
   }) : super(key: key);
+  final List<Widget> children;
+
+  final int crossAxisCount;
+  final double mainAxisSpacing;
+  final double crossAxisSpacing;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = List.generate(crossAxisCount, (index) => <Widget>[]);
-        
+
         for (int i = 0; i < children.length; i++) {
           columns[i % crossAxisCount].add(children[i]);
-          if (i % crossAxisCount != crossAxisCount - 1 && i != children.length - 1) {
+          if (i % crossAxisCount != crossAxisCount - 1 &&
+              i != children.length - 1) {
             columns[i % crossAxisCount].add(SizedBox(height: mainAxisSpacing));
           }
         }
@@ -32,15 +33,13 @@ class ModernGridLayout extends StatelessWidget {
           children: columns.asMap().entries.map((entry) {
             final index = entry.key;
             final columnChildren = entry.value;
-            
+
             return Expanded(
               child: Padding(
                 padding: EdgeInsets.only(
                   right: index < crossAxisCount - 1 ? crossAxisSpacing : 0,
                 ),
-                child: Column(
-                  children: columnChildren,
-                ),
+                child: Column(children: columnChildren),
               ),
             );
           }).toList(),
@@ -52,13 +51,6 @@ class ModernGridLayout extends StatelessWidget {
 
 // Widget para cards com tamanhos diferentes
 class FlexibleCard extends StatelessWidget {
-  final String texto;
-  final VoidCallback onTap;
-  final IconData? icone;
-  final String? customIcon;
-  final double? height;
-  final bool isLarge;
-
   const FlexibleCard({
     Key? key,
     required this.texto,
@@ -68,6 +60,12 @@ class FlexibleCard extends StatelessWidget {
     this.height,
     this.isLarge = false,
   }) : super(key: key);
+  final String texto;
+  final VoidCallback onTap;
+  final IconData? icone;
+  final String? customIcon;
+  final double? height;
+  final bool isLarge;
 
   @override
   Widget build(BuildContext context) {
@@ -88,17 +86,17 @@ class FlexibleCard extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: isLarge 
-                ? [
-                    const Color(0xFF049F56).withOpacity(0.3),
-                    const Color(0xFF045D3A).withOpacity(0.2),
-                    Colors.white.withOpacity(0.1),
-                  ]
-                : [
-                    Colors.white.withOpacity(0.25),
-                    Colors.white.withOpacity(0.15),
-                    Colors.white.withOpacity(0.05),
-                  ],
+              colors: isLarge
+                  ? [
+                      const Color(0xFF049F56).withOpacity(0.3),
+                      const Color(0xFF045D3A).withOpacity(0.2),
+                      Colors.white.withOpacity(0.1),
+                    ]
+                  : [
+                      Colors.white.withOpacity(0.25),
+                      Colors.white.withOpacity(0.15),
+                      Colors.white.withOpacity(0.05),
+                    ],
               stops: const [0.0, 0.5, 1.0],
             ),
             borderRadius: BorderRadius.circular(24),
@@ -136,13 +134,10 @@ class FlexibleCard extends StatelessWidget {
                 duration: const Duration(milliseconds: 300),
                 padding: EdgeInsets.all(isLarge ? 20 : 16),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFF049F56),
-                      const Color(0xFF045D3A),
-                    ],
+                    colors: [Color(0xFF049F56), Color(0xFF045D3A)],
                   ),
                   borderRadius: BorderRadius.circular(isLarge ? 24 : 20),
                   boxShadow: [
@@ -156,19 +151,19 @@ class FlexibleCard extends StatelessWidget {
                 ),
                 child: customIcon != null
                     ? Image.asset(
-                        customIcon!, 
-                        width: isLarge ? 40 : 32, 
+                        customIcon!,
+                        width: isLarge ? 40 : 32,
                         height: isLarge ? 40 : 32,
                         color: Colors.white,
                       )
                     : Icon(
-                        icone ?? Icons.help_outline, 
-                        size: isLarge ? 40 : 32, 
+                        icone ?? Icons.help_outline,
+                        size: isLarge ? 40 : 32,
                         color: Colors.white,
                       ),
               ),
               SizedBox(height: isLarge ? 20 : 16),
-              
+
               // Texto com tamanho responsivo
               Text(
                 texto,

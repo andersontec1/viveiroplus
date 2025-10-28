@@ -118,7 +118,6 @@ class PainelGraficos extends StatelessWidget {
               lineTouchData: LineTouchData(
                 enabled: true,
                 touchTooltipData: LineTouchTooltipData(
-                  tooltipBgColor: Colors.black87,
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((spot) {
                       final idx = spot.x.round();

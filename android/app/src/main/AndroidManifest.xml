@@ -4,6 +4,10 @@
     <!-- Permissões Necessárias -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Para salvar arquivos em Downloads (Android < 13) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Para Android 13+ pode ser necessário MANAGE_EXTERNAL_STORAGE em cenários específicos, evitando agora -->
 
     <application
         android:label="Viveiro+"

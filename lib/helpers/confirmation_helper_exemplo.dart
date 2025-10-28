@@ -9,20 +9,23 @@ import 'package:flutter/material.dart';
 import '../helpers/confirmation_helper.dart';
 
 class ExemploConfirmationHelper {
-  
   // ==========================================
   // EXEMPLO 1: Confirmação de exclusão básica
   // ==========================================
-  static Future<void> exemploExclusaoBasica(BuildContext context, String id) async {
+  static Future<void> exemploExclusaoBasica(
+    BuildContext context,
+    String id,
+  ) async {
     final confirmado = await ConfirmationHelper.showDoubleConfirmation(
       context: context,
       title: 'Excluir item?',
       content: 'Você tem certeza que deseja excluir este item?',
     );
 
+    if (!context.mounted) return;
     if (confirmado) {
       // Executar exclusão aqui
-      print('Item $id excluído');
+      debugPrint('Item $id excluído');
     }
   }
 
@@ -40,6 +43,7 @@ class ExemploConfirmationHelper {
       actionColor: Colors.orange,
     );
 
+    if (!context.mounted) return;
     if (confirmado) {
       // Executar arquivamento
     }
@@ -68,10 +72,11 @@ class ExemploConfirmationHelper {
 
       // Simula operação (substitua pela sua lógica)
       await Future.delayed(const Duration(seconds: 2));
-      
+
       // Remove o loading
-      Navigator.pop(context);
-      
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).maybePop();
+
       // Mostra sucesso
       await ConfirmationHelper.showSuccess(
         context: context,
@@ -80,8 +85,9 @@ class ExemploConfirmationHelper {
       );
     } catch (e) {
       // Remove o loading
-      Navigator.pop(context);
-      
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).maybePop();
+
       // Mostra erro
       await ConfirmationHelper.showError(
         context: context,
@@ -97,6 +103,7 @@ class ExemploConfirmationHelper {
   // ==========================================
   static Future<void> exemploDialogs(BuildContext context) async {
     // Dialog de sucesso
+    if (!context.mounted) return;
     await ConfirmationHelper.showSuccess(
       context: context,
       title: 'Operação concluída!',
@@ -104,6 +111,7 @@ class ExemploConfirmationHelper {
     );
 
     // Dialog de erro
+    if (!context.mounted) return;
     await ConfirmationHelper.showError(
       context: context,
       title: 'Falha na conexão',
@@ -112,22 +120,27 @@ class ExemploConfirmationHelper {
     );
 
     // Loading
+    if (!context.mounted) return;
     ConfirmationHelper.showLoading(
       context: context,
       message: 'Sincronizando dados...',
     );
-    
+
     // Simula operação
     await Future.delayed(const Duration(seconds: 3));
-    
+
     // Remove o loading
-    Navigator.pop(context);
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).maybePop();
   }
 
   // ==========================================
   // EXEMPLO 5: Integração com operações do Firebase
   // ==========================================
-  static Future<void> exemploFirebase(BuildContext context, String docId) async {
+  static Future<void> exemploFirebase(
+    BuildContext context,
+    String docId,
+  ) async {
     final confirmado = await ConfirmationHelper.showDoubleConfirmation(
       context: context,
       title: 'Excluir registro?',
@@ -139,6 +152,7 @@ class ExemploConfirmationHelper {
     if (!confirmado) return;
 
     try {
+      if (!context.mounted) return;
       ConfirmationHelper.showLoading(
         context: context,
         message: 'Excluindo registro...',
@@ -146,17 +160,19 @@ class ExemploConfirmationHelper {
 
       // Sua operação Firebase aqui
       // await FirebaseFirestore.instance.collection('sua_colecao').doc(docId).delete();
-      
-      Navigator.pop(context); // Remove loading
-      
+
+      if (!context.mounted) return; // Remove loading
+      Navigator.of(context, rootNavigator: true).maybePop();
+
       await ConfirmationHelper.showSuccess(
         context: context,
         title: 'Registro excluído!',
         content: 'O registro foi removido com sucesso.',
       );
     } catch (e) {
-      Navigator.pop(context); // Remove loading
-      
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).maybePop(); // Remove loading
+
       await ConfirmationHelper.showError(
         context: context,
         title: 'Erro na exclusão',

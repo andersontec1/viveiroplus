@@ -3,7 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../widgets/degrade_fundo.dart'; // adicione este import
-import 'exportador_csv_mobile.dart' if (dart.library.html) 'exportador_csv_web.dart' as exportador;
+import '../widgets/responsive_center.dart';
+import 'exportador_csv_mobile.dart'
+    if (dart.library.html) 'exportador_csv_web.dart'
+    as exportador;
+import '../helpers/export_helper.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class TelaRelatorios extends StatefulWidget {
@@ -20,6 +24,7 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
   Map<String, String> _destinos = {};
   List<Map<String, dynamic>> registrosAnalise = [];
   List<Map<String, dynamic>> registrosRacao = [];
+  bool _exportando = false;
 
   final List<Map<String, dynamic>> horariosAnalise = [
     {'label': '6h–7h', 'ini': 6 * 60, 'fim': 7 * 60},
@@ -43,12 +48,16 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
 
   Future<void> _carregarDestinos() async {
     final mapa = <String, String>{};
-    final snapViveiros = await FirebaseFirestore.instance.collection('viveiros').get();
+    final snapViveiros = await FirebaseFirestore.instance
+        .collection('viveiros')
+        .get();
     for (final doc in snapViveiros.docs) {
       final data = doc.data();
       mapa[data['codigo']] = data['nome'];
     }
-    final snapBercarios = await FirebaseFirestore.instance.collection('bercarios').get();
+    final snapBercarios = await FirebaseFirestore.instance
+        .collection('bercarios')
+        .get();
     for (final doc in snapBercarios.docs) {
       final data = doc.data();
       mapa[data['codigo']] = data['nome'];
@@ -57,7 +66,11 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
   }
 
   Future<void> _carregarRegistros() async {
-    final inicio = DateTime(dataSelecionada!.year, dataSelecionada!.month, dataSelecionada!.day);
+    final inicio = DateTime(
+      dataSelecionada!.year,
+      dataSelecionada!.month,
+      dataSelecionada!.day,
+    );
     final fim = inicio.add(const Duration(days: 1));
 
     final analise = await FirebaseFirestore.instance
@@ -86,8 +99,10 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
   }
 
   bool _filtrarRegistro(Map<String, dynamic> reg) {
-    if (tipoSelecionado != null && reg['tipoDestino'] != tipoSelecionado) return false;
-    if (codigoSelecionado != null && reg['codigo'] != codigoSelecionado) return false;
+    if (tipoSelecionado != null && reg['tipoDestino'] != tipoSelecionado)
+      return false;
+    if (codigoSelecionado != null && reg['codigo'] != codigoSelecionado)
+      return false;
     return true;
   }
 
@@ -107,7 +122,7 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
 
   void _exportarCSV() {
     final List<List<dynamic>> rows = [
-      ['Tipo', 'Código', 'Nome', 'Horário', 'Status']
+      ['Tipo', 'Código', 'Nome', 'Horário', 'Status'],
     ];
 
     for (final h in horariosAnalise) {
@@ -116,7 +131,11 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
         codigoSelecionado ?? '-',
         _destinos[codigoSelecionado] ?? '-',
         h['label'],
-        _status(registrosAnalise.map((r) => r['hora'] as DateTime).toList(), h['ini'], h['fim'])
+        _status(
+          registrosAnalise.map((r) => r['hora'] as DateTime).toList(),
+          h['ini'],
+          h['fim'],
+        ),
       ]);
     }
     for (final h in horariosRacao) {
@@ -125,7 +144,11 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
         codigoSelecionado ?? '-',
         _destinos[codigoSelecionado] ?? '-',
         h['label'],
-        _status(registrosRacao.map((r) => r['hora'] as DateTime).toList(), h['ini'], h['fim'])
+        _status(
+          registrosRacao.map((r) => r['hora'] as DateTime).toList(),
+          h['ini'],
+          h['fim'],
+        ),
       ]);
     }
 
@@ -145,8 +168,24 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
   @override
   Widget build(BuildContext context) {
     // Cálculo dos status para gráfico
-    final analiseStatus = horariosAnalise.map((h) => _status(registrosAnalise.map((r) => r['hora'] as DateTime).toList(), h['ini'], h['fim'])).toList();
-    final racaoStatus = horariosRacao.map((h) => _status(registrosRacao.map((r) => r['hora'] as DateTime).toList(), h['ini'], h['fim'])).toList();
+    final analiseStatus = horariosAnalise
+        .map(
+          (h) => _status(
+            registrosAnalise.map((r) => r['hora'] as DateTime).toList(),
+            h['ini'],
+            h['fim'],
+          ),
+        )
+        .toList();
+    final racaoStatus = horariosRacao
+        .map(
+          (h) => _status(
+            registrosRacao.map((r) => r['hora'] as DateTime).toList(),
+            h['ini'],
+            h['fim'],
+          ),
+        )
+        .toList();
     final analiseCount = [
       analiseStatus.where((s) => s == '✅').length,
       analiseStatus.where((s) => s == '⚠️').length,
@@ -161,8 +200,9 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
     return Scaffold(
       appBar: AppBar(title: const Text('Relatório por Horário')),
       body: DegradeFundo(
-        child: Padding(
+        child: ResponsiveCenter(
           padding: const EdgeInsets.all(16),
+          alignment: Alignment.topCenter,
           child: Column(
             children: [
               // Gráfico de barras resumo
@@ -171,20 +211,53 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
                 child: BarChart(
                   BarChartData(
                     barGroups: [
-                      BarChartGroupData(x: 0, barRods: [
-                        BarChartRodData(toY: analiseCount[0].toDouble(), color: Colors.green, width: 18),
-                        BarChartRodData(toY: analiseCount[1].toDouble(), color: Colors.orange, width: 18),
-                        BarChartRodData(toY: analiseCount[2].toDouble(), color: Colors.red, width: 18),
-                      ]),
-                      BarChartGroupData(x: 1, barRods: [
-                        BarChartRodData(toY: racaoCount[0].toDouble(), color: Colors.green, width: 18),
-                        BarChartRodData(toY: racaoCount[1].toDouble(), color: Colors.orange, width: 18),
-                        BarChartRodData(toY: racaoCount[2].toDouble(), color: Colors.red, width: 18),
-                      ]),
+                      BarChartGroupData(
+                        x: 0,
+                        barRods: [
+                          BarChartRodData(
+                            toY: analiseCount[0].toDouble(),
+                            color: Colors.green,
+                            width: 18,
+                          ),
+                          BarChartRodData(
+                            toY: analiseCount[1].toDouble(),
+                            color: Colors.orange,
+                            width: 18,
+                          ),
+                          BarChartRodData(
+                            toY: analiseCount[2].toDouble(),
+                            color: Colors.red,
+                            width: 18,
+                          ),
+                        ],
+                      ),
+                      BarChartGroupData(
+                        x: 1,
+                        barRods: [
+                          BarChartRodData(
+                            toY: racaoCount[0].toDouble(),
+                            color: Colors.green,
+                            width: 18,
+                          ),
+                          BarChartRodData(
+                            toY: racaoCount[1].toDouble(),
+                            color: Colors.orange,
+                            width: 18,
+                          ),
+                          BarChartRodData(
+                            toY: racaoCount[2].toDouble(),
+                            color: Colors.red,
+                            width: 18,
+                          ),
+                        ],
+                      ),
                     ],
                     titlesData: FlTitlesData(
                       leftTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: true, reservedSize: 28),
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 28,
+                        ),
                       ),
                       bottomTitles: AxisTitles(
                         sideTitles: SideTitles(
@@ -192,22 +265,37 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
                           getTitlesWidget: (value, meta) {
                             switch (value.toInt()) {
                               case 0:
-                                return const Text('Análise', style: TextStyle(fontWeight: FontWeight.bold));
+                                return const Text(
+                                  'Análise',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                );
                               case 1:
-                                return const Text('Ração', style: TextStyle(fontWeight: FontWeight.bold));
+                                return const Text(
+                                  'Ração',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                );
                             }
                             return const SizedBox();
                           },
                         ),
                       ),
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                     ),
-                    barTouchData: BarTouchData(enabled: true),
+                    barTouchData: const BarTouchData(enabled: true),
                     gridData: const FlGridData(show: true),
                     borderData: FlBorderData(show: false),
                     groupsSpace: 32,
-                    maxY: [analiseCount, racaoCount].expand((e) => e).fold(0, (a, b) => a > b ? a : b).toDouble() + 1,
+                    maxY:
+                        [analiseCount, racaoCount]
+                            .expand((e) => e)
+                            .fold(0, (a, b) => a > b ? a : b)
+                            .toDouble() +
+                        1,
                   ),
                 ),
               ),
@@ -223,48 +311,64 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
                 ],
               ),
               const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: tipoSelecionado,
-                    decoration: const InputDecoration(labelText: 'Tipo'),
-                    items: const [
-                      DropdownMenuItem(value: 'viveiro', child: Text('Viveiro')),
-                      DropdownMenuItem(value: 'bercario', child: Text('Berçário')),
-                    ],
-                    onChanged: (v) => setState(() {
-                      tipoSelecionado = v;
-                      codigoSelecionado = null;
-                      _carregarRegistros();
-                    }),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: tipoSelecionado,
+                      decoration: const InputDecoration(labelText: 'Tipo'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'viveiro',
+                          child: Text('Viveiro'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'bercario',
+                          child: Text('Berçário'),
+                        ),
+                      ],
+                      onChanged: (v) => setState(() {
+                        tipoSelecionado = v;
+                        codigoSelecionado = null;
+                        _carregarRegistros();
+                      }),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: codigoSelecionado,
-                    decoration: const InputDecoration(labelText: 'Código'),
-                    items: _destinos.entries
-                        .where((e) {
-                          final isBercario = e.key.toLowerCase().contains('b');
-                          return tipoSelecionado == 'bercario' ? isBercario : !isBercario;
-                        })
-                        .map((e) => DropdownMenuItem(
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: codigoSelecionado,
+                      decoration: const InputDecoration(labelText: 'Código'),
+                      items: _destinos.entries
+                          .where((e) {
+                            final isBercario = e.key.toLowerCase().contains(
+                              'b',
+                            );
+                            return tipoSelecionado == 'bercario'
+                                ? isBercario
+                                : !isBercario;
+                          })
+                          .map(
+                            (e) => DropdownMenuItem(
                               value: e.key,
                               child: Text('${e.value} (cód: ${e.key})'),
-                            ))
-                        .toList(),
-                    onChanged: (v) => setState(() {
-                      codigoSelecionado = v;
-                      _carregarRegistros();
-                    }),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() {
+                        codigoSelecionado = v;
+                        _carregarRegistros();
+                      }),
+                    ),
                   ),
-                ),
-              ]),
+                ],
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Text('Data: ${DateFormat('dd/MM/yyyy').format(dataSelecionada!)}'),
+                  Text(
+                    'Data: ${DateFormat('dd/MM/yyyy').format(dataSelecionada!)}',
+                  ),
                   const Spacer(),
                   TextButton.icon(
                     icon: const Icon(Icons.calendar_today),
@@ -288,23 +392,45 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
               Expanded(
                 child: ListView(
                   children: [
-                    const Text('Análise da Água:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ...horariosAnalise.map((h) => ListTile(
-                          leading: Text(
-                            _status(registrosAnalise.map((r) => r['hora'] as DateTime).toList(), h['ini'], h['fim']),
-                            style: const TextStyle(fontSize: 18),
+                    const Text(
+                      'Análise da Água:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    ...horariosAnalise.map(
+                      (h) => ListTile(
+                        leading: Text(
+                          _status(
+                            registrosAnalise
+                                .map((r) => r['hora'] as DateTime)
+                                .toList(),
+                            h['ini'],
+                            h['fim'],
                           ),
-                          title: Text(h['label']),
-                        )),
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                        title: Text(h['label']),
+                      ),
+                    ),
                     const SizedBox(height: 16),
-                    const Text('Ração:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ...horariosRacao.map((h) => ListTile(
-                          leading: Text(
-                            _status(registrosRacao.map((r) => r['hora'] as DateTime).toList(), h['ini'], h['fim']),
-                            style: const TextStyle(fontSize: 18),
+                    const Text(
+                      'Ração:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    ...horariosRacao.map(
+                      (h) => ListTile(
+                        leading: Text(
+                          _status(
+                            registrosRacao
+                                .map((r) => r['hora'] as DateTime)
+                                .toList(),
+                            h['ini'],
+                            h['fim'],
                           ),
-                          title: Text(h['label']),
-                        )),
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                        title: Text(h['label']),
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     const Divider(),
                     const Text(
@@ -318,6 +444,92 @@ class _TelaRelatoriosState extends State<TelaRelatorios> {
                 onPressed: _exportarCSV,
                 icon: const Icon(Icons.download),
                 label: const Text('Exportar CSV'),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _exportando
+                          ? null
+                          : () async {
+                              setState(() => _exportando = true);
+                              try {
+                                await ExportHelper.exportarExcel(
+                                  codigo: codigoSelecionado,
+                                );
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Falha ao exportar Excel: $e',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } finally {
+                                if (mounted)
+                                  setState(() => _exportando = false);
+                              }
+                            },
+                      icon: const Icon(Icons.table_view),
+                      label: Text(
+                        _exportando ? 'Gerando...' : 'Exportar Excel',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal.shade600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _exportando
+                          ? null
+                          : () async {
+                              setState(() => _exportando = true);
+                              try {
+                                await ExportHelper.exportarPdf(
+                                  codigo: codigoSelecionado,
+                                  onDone: (nome, path) {
+                                    if (mounted) {
+                                      final msg = path == null
+                                          ? 'PDF baixado: ' + nome
+                                          : 'PDF salvo: ' +
+                                                nome +
+                                                ("\n" + path);
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(content: Text(msg)),
+                                      );
+                                    }
+                                  },
+                                );
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Falha ao exportar PDF: $e',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } finally {
+                                if (mounted)
+                                  setState(() => _exportando = false);
+                              }
+                            },
+                      icon: const Icon(Icons.picture_as_pdf),
+                      label: Text(_exportando ? 'Gerando...' : 'Exportar PDF'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent.shade400,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

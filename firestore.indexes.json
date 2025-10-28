@@ -1,0 +1,48 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "pontos_entrega",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ativo", "order": "ASCENDING" },
+        { "fieldPath": "nome", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "racao",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tipoDestino", "order": "ASCENDING" },
+        { "fieldPath": "codigoDestino", "order": "ASCENDING" },
+        { "fieldPath": "dataRegistro", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "racao",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tipoDestino", "order": "ASCENDING" },
+        { "fieldPath": "codigoDestino", "order": "ASCENDING" },
+        { "fieldPath": "dataRegistro", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "movimentacoes_estoque",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "insumoId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "movimentacoes_estoque",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "origem", "order": "ASCENDING" },
+        { "fieldPath": "referenciaId", "order": "ASCENDING" },
+        { "fieldPath": "tipoMov", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
