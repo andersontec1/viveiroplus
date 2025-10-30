@@ -274,7 +274,23 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
     try {
       final qtd =
           double.tryParse(_quantidadeCtrl.text.replaceAll(',', '.')) ?? 0;
-      // Validação da distribuição por ponto (se informada)
+      final insumo = _insumos.firstWhere((d) => d.id == _insumoId).data();
+      final tipoStr = (insumo['tipo'] ?? '').toString().toLowerCase();
+      final isRacao = tipoStr == 'ração' || tipoStr == 'racao';
+
+      // Validações obrigatórias para Ração
+      if (isRacao) {
+        if (_validade == null) {
+          throw Exception('Validade é obrigatória para ração.');
+        }
+        if (_distribuicaoPorPonto.isEmpty) {
+          throw Exception(
+            'Distribuição por ponto de entrega é obrigatória para ração.',
+          );
+        }
+      }
+
+      // Validação da distribuição por ponto (quando informada ou obrigatória)
       if (_distribuicaoPorPonto.isNotEmpty) {
         final soma = _distribuicaoPorPonto
             .map((e) => (e['quantidade'] ?? 0) as num)
@@ -285,7 +301,6 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
           );
         }
       }
-      final insumo = _insumos.firstWhere((d) => d.id == _insumoId).data();
       // Validação de duplicidade de código de lote (se informado)
       final codigoLote = _loteCtrl.text.trim();
       if (codigoLote.isNotEmpty) {
@@ -353,6 +368,15 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
 
   @override
   Widget build(BuildContext context) {
+    // Detecta se o insumo selecionado é do tipo "Ração" para ajustar mensagens/obrigações
+    bool isRacaoAtual = false;
+    if (_insumoId != null) {
+      try {
+        final ins = _insumos.firstWhere((d) => d.id == _insumoId).data();
+        final t = (ins['tipo'] ?? '').toString().toLowerCase();
+        isRacaoAtual = t == 'ração' || t == 'racao';
+      } catch (_) {}
+    }
     return AppScaffold(
       title: 'Entrada de Insumo (Lote)',
       body: DegradeFundo(
@@ -614,7 +638,7 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
                         },
                         child: InputDecorator(
                           decoration: const InputDecoration(
-                            labelText: 'Validade (recomendado)',
+                            labelText: 'Validade (obrigatória para Ração)',
                           ),
                           child: Text(
                             _validade == null
@@ -690,9 +714,14 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
                           children: [
                             const Icon(Icons.local_shipping, size: 18),
                             const SizedBox(width: 6),
-                            const Text(
-                              'Distribuição por ponto de entrega (opcional)',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                            Text(
+                              'Distribuição por ponto de entrega' +
+                                  (isRacaoAtual
+                                      ? ' (obrigatória para Ração)'
+                                      : ''),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const Spacer(),
                             TextButton.icon(
@@ -723,7 +752,9 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
                         const SizedBox(height: 6),
                         if (_distribuicaoPorPonto.isEmpty)
                           Text(
-                            'Nenhum ponto selecionado. Toda a quantidade ficará sem distribuição por ponto.',
+                            isRacaoAtual
+                                ? 'Obrigatório para ração: selecione ao menos um ponto e distribua 100% da quantidade.'
+                                : 'Nenhum ponto selecionado. Toda a quantidade ficará sem distribuição por ponto.',
                             style: TextStyle(color: Colors.grey[700]),
                           )
                         else

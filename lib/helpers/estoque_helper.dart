@@ -38,6 +38,29 @@ class EstoqueHelper {
       throw Exception('Insumo não encontrado');
     }
     final insumo = insumoSnap.data() as Map<String, dynamic>;
+    final tipoStr = (insumo['tipo'] ?? '').toString().toLowerCase();
+    final isRacao = tipoStr == 'ração' || tipoStr == 'racao';
+
+    // Regras obrigatórias de integridade para Ração
+    if (isRacao) {
+      if (validade == null) {
+        throw Exception('Validade é obrigatória para entrada de ração.');
+      }
+      if (entregasPorPonto == null || entregasPorPonto.isEmpty) {
+        throw Exception(
+          'Distribuição por ponto de entrega é obrigatória para entrada de ração.',
+        );
+      }
+      // Verificar soma das quantidades por ponto == quantidade total
+      final soma = entregasPorPonto
+          .map((e) => (e['quantidade'] ?? 0) as num)
+          .fold<num>(0, (a, b) => a + b);
+      if ((soma - quantidade).abs() > 0.0001) {
+        throw Exception(
+          'Soma das quantidades por ponto (${soma.toString()}) difere da quantidade total (${quantidade.toString()}).',
+        );
+      }
+    }
 
     // Cria lote
     final loteDoc = await _lotesCol.add({

@@ -959,6 +959,54 @@ class _TelaListagemRacaoState extends State<TelaListagemRacao> {
                 ),
               ),
 
+              // Instruções e dicas (alinhado ao padrão da tela de análises)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.blue),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'Dicas para consultar e registrar ração',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              '• "Ver todos" lista registros gerais; use data/destino para reduzir a carga e ver métricas do dia/acumulado.',
+                            ),
+                            Text(
+                              '• Selecione Tipo (Viveiro/Berçário) e Código para ver o Resumo do Ciclo e os registros daquele destino.',
+                            ),
+                            Text(
+                              '• Clique em “Novo Registro” para lançar ração; aditivos são identificados nos chips quando aplicados.',
+                            ),
+                            Text(
+                              '• Ao editar/excluir, o estoque (FEFO) é estornado automaticamente para ração e aditivos vinculados.',
+                            ),
+                            Text(
+                              '• O selo LEGADO indica registros antigos sem vínculo de lote; edições passam a rastrear lotes normalmente.',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
               // Card de filtros principais (ver todos + data)
               Card(
                 margin: const EdgeInsets.symmetric(
