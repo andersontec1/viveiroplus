@@ -5,6 +5,7 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/degrade_fundo.dart';
 import '../helpers/estoque_helper.dart';
 import '../helpers/security_helper.dart';
+import '../helpers/confirmation_helper.dart';
 
 class TelaEntregaRacaoFornecedor extends StatefulWidget {
   const TelaEntregaRacaoFornecedor({super.key});
@@ -61,21 +62,27 @@ class _TelaEntregaRacaoFornecedorState
 
   Future<void> _registrarEntrega() async {
     if (_insumoId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione o insumo de ração.')),
+      await ConfirmationHelper.showError(
+        context: context,
+        title: 'Campo obrigatório',
+        content: 'Selecione o insumo de ração.',
       );
       return;
     }
     final qtd = num.tryParse(_qtdCtrl.text.replaceAll(',', '.'));
     if (qtd == null || qtd <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Informe uma quantidade válida.')),
+      await ConfirmationHelper.showError(
+        context: context,
+        title: 'Quantidade inválida',
+        content: 'Informe uma quantidade válida para a entrega.',
       );
       return;
     }
     if (_recebidoPorCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Informe quem recebeu a entrega.')),
+      await ConfirmationHelper.showError(
+        context: context,
+        title: 'Campo obrigatório',
+        content: 'Informe quem recebeu a entrega.',
       );
       return;
     }
@@ -106,8 +113,11 @@ class _TelaEntregaRacaoFornecedorState
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Entrega registrada com sucesso!')),
+      await ConfirmationHelper.showSuccess(
+        context: context,
+        title: 'Entrega registrada',
+        content:
+            'A entrada do lote de ração foi salva com sucesso. Você pode consultar no histórico do estoque.',
       );
       setState(() {
         _qtdCtrl.clear();
@@ -118,9 +128,12 @@ class _TelaEntregaRacaoFornecedorState
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao registrar entrega: $e')));
+      await ConfirmationHelper.showError(
+        context: context,
+        title: 'Falha ao registrar',
+        content: 'Não foi possível registrar a entrega de ração.',
+        error: e.toString(),
+      );
     } finally {
       if (mounted) setState(() => _salvando = false);
     }
