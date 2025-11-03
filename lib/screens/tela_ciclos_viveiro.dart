@@ -518,20 +518,18 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   void _carregarParaEdicao(QueryDocumentSnapshot ciclo) {
     setState(() {
       _idEditando = ciclo.id;
-      // Reconstruir o código com prefixo para corresponder ao formato do dropdown
-      final tipo = ciclo['tipo'] ?? 'viveiro';
-      final codigo = ciclo['codigo'];
-      _codigoSelecionado = tipo == 'viveiro' ? 'V-$codigo' : 'B-$codigo';
-      _qtdCtrl.text = ciclo['quantidadeEstocada'].toString();
-      _pesoCtrl.text = ciclo['pesoInicial'].toString();
-      _dataInicio = ciclo['dataInicio'].toDate();
-      final dataRaw = ciclo.data();
-      final data = (dataRaw is Map<String, dynamic>)
-          ? dataRaw
+      // Usar mapa seguro para evitar exceções em documentos antigos sem certos campos
+      final data = (ciclo.data() is Map<String, dynamic>)
+          ? (ciclo.data() as Map<String, dynamic>)
           : <String, dynamic>{};
-      _previsaoEncerramento =
-          data.containsKey('previsaoEncerramento') &&
-              data['previsaoEncerramento'] != null
+      final tipo = (data['tipo'] as String?) ?? 'viveiro';
+      final codigo = (data['codigo'] ?? '').toString();
+      _codigoSelecionado = tipo == 'viveiro' ? 'V-$codigo' : 'B-$codigo';
+      _qtdCtrl.text = (data['quantidadeEstocada'] ?? '').toString();
+      _pesoCtrl.text = (data['pesoInicial'] ?? '').toString();
+      final dtInicio = data['dataInicio'] as Timestamp?;
+      _dataInicio = dtInicio?.toDate() ?? DateTime.now();
+      _previsaoEncerramento = (data['previsaoEncerramento'] is Timestamp)
           ? (data['previsaoEncerramento'] as Timestamp).toDate()
           : null;
     });
@@ -793,47 +791,32 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   }
 
   Widget _buildCicloCard(QueryDocumentSnapshot ciclo) {
-    final data = ciclo['dataInicio'].toDate();
-    final encerrado = ciclo['encerrado'] == true;
-    final dataRaw = ciclo.data();
-    final dataMap = (dataRaw != null && dataRaw is Map<String, dynamic>)
-        ? dataRaw
-        : <String, dynamic>{};
-    final dataEncerramento =
-        (dataMap['dataEncerramento'] != null &&
-            dataMap['dataEncerramento'] is Timestamp)
-        ? (dataMap['dataEncerramento'] as Timestamp).toDate()
-        : null;
-    final previsaoEncerramento =
-        (dataMap['previsaoEncerramento'] != null &&
-            dataMap['previsaoEncerramento'] is Timestamp)
-        ? (dataMap['previsaoEncerramento'] as Timestamp).toDate()
-        : null;
-    final abertoPor = (dataMap['abertoPor'] != null)
-        ? dataMap['abertoPor']
-        : '—';
-    final fechadoPor = (dataMap['fechadoPor'] != null)
-        ? dataMap['fechadoPor']
-        : '';
-    final pesoFinal = (dataMap['pesoFinal'] != null)
-        ? dataMap['pesoFinal']
-        : null;
+    final dataMap = (ciclo.data() as Map<String, dynamic>?) ?? {};
+    final DateTime data =
+        (dataMap['dataInicio'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final bool encerrado = dataMap['encerrado'] == true;
+    final DateTime? dataEncerramento =
+        (dataMap['dataEncerramento'] as Timestamp?)?.toDate();
+    final DateTime? previsaoEncerramento =
+        (dataMap['previsaoEncerramento'] as Timestamp?)?.toDate();
+    final String abertoPor = (dataMap['abertoPor'] ?? '—').toString();
+    final String fechadoPor = (dataMap['fechadoPor'] ?? '').toString();
+    final num? pesoFinal = (dataMap['pesoFinal'] as num?);
+    final num pesoInicial = (dataMap['pesoInicial'] as num?) ?? 0;
+    final String tipoLocal = (dataMap['tipo'] as String?) ?? 'viveiro';
+    final String nomeLocal = (dataMap['nome'] ?? '—').toString();
+    final String codigoLocal = (dataMap['codigo'] ?? '').toString();
 
-    final pesoInicial = (ciclo['pesoInicial'] ?? 0) as num;
     // Cálculo duração
-    int duracaoDias;
-    if (encerrado && dataEncerramento != null) {
-      duracaoDias = dataEncerramento.difference(data).inDays;
-    } else {
-      duracaoDias = DateTime.now().difference(data).inDays;
-    }
-    final ganhoPeso = (encerrado && pesoFinal != null && pesoInicial > 0)
+    final int duracaoDias = (encerrado && dataEncerramento != null)
+        ? dataEncerramento.difference(data).inDays
+        : DateTime.now().difference(data).inDays;
+    final num? ganhoPeso = (encerrado && pesoFinal != null && pesoInicial > 0)
         ? (pesoFinal - pesoInicial)
         : null;
 
     return InkWell(
       onTap: () async {
-        // Navegar para tela de detalhes
         final resultado = await Navigator.push(
           context,
           MaterialPageRoute(
@@ -841,11 +824,7 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                 TelaDetalhesCiclo(cicloId: ciclo.id, dadosCiclo: dataMap),
           ),
         );
-
-        // Se houve mudança, atualizar a tela
-        if (resultado == true) {
-          setState(() {});
-        }
+        if (resultado == true) setState(() {});
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -895,7 +874,7 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${ciclo['nome']}',
+                          nomeLocal,
                           style: const TextStyle(
                             color: Color(0xFF045D3A),
                             fontSize: 18,
@@ -910,18 +889,17 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: (ciclo['tipo'] ?? 'viveiro') == 'viveiro'
+                                color: tipoLocal == 'viveiro'
                                     ? Colors.blue.withOpacity(0.2)
                                     : Colors.orange.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                (ciclo['tipo'] ?? 'viveiro') == 'viveiro'
+                                tipoLocal == 'viveiro'
                                     ? '🐟 Viveiro'
                                     : '🦐 Berçário',
                                 style: TextStyle(
-                                  color:
-                                      (ciclo['tipo'] ?? 'viveiro') == 'viveiro'
+                                  color: tipoLocal == 'viveiro'
                                       ? Colors.blue
                                       : Colors.orange,
                                   fontSize: 12,
@@ -931,7 +909,7 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Código: ${ciclo['codigo']}',
+                              'Código: $codigoLocal',
                               style: TextStyle(
                                 color: const Color(0xFF045D3A).withOpacity(0.7),
                                 fontSize: 14,
@@ -994,7 +972,7 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                 _buildInfoRow('🏁 Encerrado', _formatarData(dataEncerramento)),
               _buildInfoRow(
                 '🦐 Estocados',
-                '${ciclo['quantidadeEstocada']} pós-larvas',
+                '${dataMap['quantidadeEstocada'] ?? 0} pós-larvas',
               ),
               _buildInfoRow('⏱️ Duração', '$duracaoDias dias'),
               if (ganhoPeso != null)
@@ -1120,12 +1098,58 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: 'Gestão de Ciclos',
+      floatingActionButton: !_mostrarFormulario
+          ? FloatingActionButton.extended(
+              onPressed: () => setState(() => _mostrarFormulario = true),
+              icon: const Icon(Icons.add),
+              label: const Text('Novo Ciclo'),
+            )
+          : null,
       body: DegradeFundo(
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                // Painel de instruções (alinhado ao padrão da tela de análises)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.blue),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'Dicas para gestão de ciclos',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              '• Um ciclo ativo por viveiro/berçário. Use os filtros para focar em abertos, encerrados ou todos.',
+                            ),
+                            Text(
+                              '• Clique em um card para ver detalhes; use “Povoar” para registrar acréscimos e “Encerrar” para finalizar.',
+                            ),
+                            Text(
+                              '• Previsão de encerramento não pode ser anterior à data de início. Campos ausentes em ciclos antigos são tratados automaticamente.',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 // Filtros de visualização modernos
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -1793,44 +1817,54 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
 
                       // Aplicar filtros na aplicação
                       if (_mostrarApenasAbertos == 1) {
-                        docs = docs
-                            .where((doc) => doc['encerrado'] == false)
-                            .toList();
+                        docs = docs.where((doc) {
+                          final m = (doc.data() as Map<String, dynamic>?) ?? {};
+                          return m['encerrado'] == false;
+                        }).toList();
                       } else if (_mostrarApenasAbertos == 2) {
-                        docs = docs
-                            .where((doc) => doc['encerrado'] == true)
-                            .toList();
+                        docs = docs.where((doc) {
+                          final m = (doc.data() as Map<String, dynamic>?) ?? {};
+                          return m['encerrado'] == true;
+                        }).toList();
                       }
 
                       // Filtrar por tipo (viveiro/berçário)
                       if (_tipoFiltro != null) {
                         docs = docs.where((doc) {
-                          final tipo =
-                              doc['tipo'] ??
-                              'viveiro'; // Padrão para ciclos antigos
+                          final m = (doc.data() as Map<String, dynamic>?) ?? {};
+                          final tipo = (m['tipo'] as String?) ?? 'viveiro';
                           return tipo == _tipoFiltro;
                         }).toList();
                       }
 
                       // Filtrar por código específico
                       if (_codigoFiltro != null) {
-                        final codigoLimpo = _codigoFiltro!.substring(
-                          2,
-                        ); // Remove "V-" ou "B-"
-                        docs = docs
-                            .where((doc) => doc['codigo'] == codigoLimpo)
-                            .toList();
+                        final codigoLimpo = _codigoFiltro!.substring(2);
+                        docs = docs.where((doc) {
+                          final m = (doc.data() as Map<String, dynamic>?) ?? {};
+                          return (m['codigo']?.toString() ?? '') == codigoLimpo;
+                        }).toList();
                       }
 
                       // Filtrar apenas viveiros e berçários cadastrados
-                      docs = docs
-                          .where((doc) => _destinos.containsKey(doc['codigo']))
-                          .toList();
+                      docs = docs.where((doc) {
+                        final m = (doc.data() as Map<String, dynamic>?) ?? {};
+                        final tipo = (m['tipo'] as String?) ?? 'viveiro';
+                        final codigo = (m['codigo']?.toString() ?? '');
+                        final key = (tipo == 'viveiro' ? 'V-' : 'B-') + codigo;
+                        return _destinos.containsKey(key);
+                      }).toList();
 
                       // Ordenar por data de início (mais recente primeiro)
                       docs.sort((a, b) {
-                        final dateA = (a['dataInicio'] as Timestamp).toDate();
-                        final dateB = (b['dataInicio'] as Timestamp).toDate();
+                        final ma = (a.data() as Map<String, dynamic>?) ?? {};
+                        final mb = (b.data() as Map<String, dynamic>?) ?? {};
+                        final dateA =
+                            (ma['dataInicio'] as Timestamp?)?.toDate() ??
+                            DateTime(1970);
+                        final dateB =
+                            (mb['dataInicio'] as Timestamp?)?.toDate() ??
+                            DateTime(1970);
                         return dateB.compareTo(dateA);
                       });
 

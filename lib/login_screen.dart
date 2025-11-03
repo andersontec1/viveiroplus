@@ -71,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-  if (mounted) setState(() => _carregando = true);
+    if (mounted) setState(() => _carregando = true);
 
     try {
       // Salvar preferências de lembrar-me
@@ -170,33 +170,50 @@ class _LoginScreenState extends State<LoginScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(children: [
-                          Checkbox(
-                            value: _lembrarMe,
-                            onChanged: (v) => setState(() => _lembrarMe = v ?? true),
-                          ),
-                          const Text('Lembrar-me'),
-                        ]),
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: _lembrarMe,
+                              onChanged: (v) =>
+                                  setState(() => _lembrarMe = v ?? true),
+                            ),
+                            const Text('Lembrar-me'),
+                          ],
+                        ),
                         TextButton(
                           onPressed: () async {
-                            final email = await _resolverEmailPorNomeUsuario(_usernameController.text.trim());
-                            if (!context.mounted) return; // evita usar context após await
+                            final email = await _resolverEmailPorNomeUsuario(
+                              _usernameController.text.trim(),
+                            );
+                            if (!context.mounted)
+                              return; // evita usar context após await
                             if (email == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Informe o nome de usuário para recuperar a senha.')),
+                                const SnackBar(
+                                  content: Text(
+                                    'Informe o nome de usuário para recuperar a senha.',
+                                  ),
+                                ),
                               );
                               return;
                             }
                             try {
-                              await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                              await FirebaseAuth.instance
+                                  .sendPasswordResetEmail(email: email);
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Link de redefinição enviado para o e-mail.')),
+                                const SnackBar(
+                                  content: Text(
+                                    'Link de redefinição enviado para o e-mail.',
+                                  ),
+                                ),
                               );
                             } catch (e) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Erro ao enviar e-mail: $e')),
+                                SnackBar(
+                                  content: Text('Erro ao enviar e-mail: $e'),
+                                ),
                               );
                             }
                           },
@@ -212,14 +229,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: ElevatedButton.icon(
                               onPressed: _fazerLogin,
                               icon: const Icon(Icons.login),
-                              label: Text('Entrar', style: Theme.of(context).textTheme.labelLarge),
+                              label: Text(
+                                'Entrar',
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
                             ),
                           ),
                     const SizedBox(height: 24),
                     Center(
                       child: Text(
                         _versaoApp,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: Colors.grey),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -233,7 +255,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: Card(
                       elevation: 6,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: content,
                     ),
                   ),
