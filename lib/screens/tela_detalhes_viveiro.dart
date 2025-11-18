@@ -929,13 +929,6 @@ class _TelaDetalhesViveiroState extends State<TelaDetalhesViveiro>
                           '%',
                           ideal: '80 - 120',
                         ),
-                      if (data['saturacao_oxigenio'] != null)
-                        paramDetalhe(
-                          'Saturação O₂',
-                          'saturacao_oxigenio',
-                          '%',
-                          ideal: '80 - 120',
-                        ),
                       if (data['calcio'] != null)
                         paramDetalhe(
                           'Cálcio',

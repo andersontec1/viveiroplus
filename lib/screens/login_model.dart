@@ -51,7 +51,8 @@ class LoginModel extends ChangeNotifier {
 
     final conn = await _connectivity.checkConnectivity();
     if (conn == ConnectivityResult.none) {
-      error = '🌐 Sem conexão com a internet.\nVerifique sua conexão e tente novamente.';
+      error =
+          '🌐 Sem conexão com a internet.\nVerifique sua conexão e tente novamente.';
       isLoading = false;
       notifyListeners();
       return;
@@ -91,7 +92,10 @@ class LoginModel extends ChangeNotifier {
 
       // Salva credenciais localmente se ativado
       if (rememberMe) {
-        await _secureStorage.write(key: 'usuario', value: nomeUsuarioNormalizado);
+        await _secureStorage.write(
+          key: 'usuario',
+          value: nomeUsuarioNormalizado,
+        );
         await _secureStorage.write(key: 'senha', value: senha);
       } else {
         await _secureStorage.delete(key: 'usuario');
@@ -104,13 +108,15 @@ class LoginModel extends ChangeNotifier {
       if (!ctx.mounted) return;
 
       // Redirecionamento baseado em permissões ou função (compatibilidade)
-      if ((permissoes.isNotEmpty) || (funcao != null && [
-        'admin',
-        'gerente',
-        'supervisor',
-        'arraçoador',
-        'registrador',
-      ].contains(funcao))) {
+      if ((permissoes.isNotEmpty) ||
+          (funcao != null &&
+              [
+                'admin',
+                'gerente',
+                'supervisor',
+                'arraçoador',
+                'registrador',
+              ].contains(funcao))) {
         Navigator.of(ctx).pushReplacementNamed('/menu');
       } else {
         ScaffoldMessenger.of(ctx).showSnackBar(
@@ -121,16 +127,20 @@ class LoginModel extends ChangeNotifier {
         );
       }
     } on TimeoutException {
-      error = '⏱️ Servidor demorou para responder.\nTente novamente em alguns segundos.';
+      error =
+          '⏱️ Servidor demorou para responder.\nTente novamente em alguns segundos.';
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
-        error = '👤 Usuário não encontrado.\nVerifique se digitou corretamente.';
+        error =
+            '👤 Usuário não encontrado.\nVerifique se digitou corretamente.';
       } else if (e.code == 'wrong-password') {
         error = '🔒 Senha incorreta.\nVerifique sua senha e tente novamente.';
       } else if (e.code == 'too-many-requests') {
-        error = '🚫 Muitas tentativas de login.\nTente novamente em alguns minutos.';
+        error =
+            '🚫 Muitas tentativas de login.\nTente novamente em alguns minutos.';
       } else if (e.code == 'network-request-failed') {
-        error = '🌐 Falha na conexão.\nVerifique sua internet e tente novamente.';
+        error =
+            '🌐 Falha na conexão.\nVerifique sua internet e tente novamente.';
       } else {
         error = '❌ Erro no login.\nCódigo: ${e.code}';
       }

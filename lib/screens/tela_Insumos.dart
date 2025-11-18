@@ -21,17 +21,13 @@ class _TelaInsumosState extends State<TelaInsumos> {
   final _observacoesController = TextEditingController();
   final _unidadeController = TextEditingController();
   final _fornecedorController = TextEditingController();
-  final _loteController =
-      TextEditingController(); // oculto para tipos com controle por lote
-  final _quantidadeInicialController = TextEditingController();
-  final _nivelMinimoController = TextEditingController();
-  DateTime? _validade; // usado apenas para insumos não-loteados
   final List<String> _unidades = [
     'kg',
     'g',
     'L',
     'mL',
     'saco',
+    'balde',
     'un',
     'caixa',
     'outro',
@@ -86,12 +82,7 @@ class _TelaInsumosState extends State<TelaInsumos> {
       );
       return;
     }
-    final bool isRacao = _tipoSelecionado == 'Ração';
-    final quantidadeInicial =
-        double.tryParse(
-          _quantidadeInicialController.text.replaceAll(',', '.'),
-        ) ??
-        0;
+
     final dados = <String, dynamic>{
       'tipo': _tipoSelecionado,
       'nome': _nomeController.text.trim(),
@@ -102,22 +93,10 @@ class _TelaInsumosState extends State<TelaInsumos> {
       'timestamp': FieldValue.serverTimestamp(),
       'unidade': _unidadeController.text.trim(),
       'fornecedor': _fornecedorController.text.trim(),
-      'nivel_minimo':
-          double.tryParse(_nivelMinimoController.text.replaceAll(',', '.')) ??
-          5,
+      // Estoque sempre começa em 0, controlado pelos lotes
+      'estoque': 0,
     };
-    if (isRacao) {
-      // Controle de validade e lote via tela de Entrada de Insumo (lotes)
-      dados['quantidade_inicial'] = 0;
-      dados['estoque'] = 0;
-    } else {
-      dados['lote'] = _loteController.text.trim();
-      dados['validade'] = _validade != null
-          ? Timestamp.fromDate(_validade!)
-          : null;
-      dados['quantidade_inicial'] = quantidadeInicial;
-      dados['estoque'] = quantidadeInicial;
-    }
+
     final col = FirebaseFirestore.instance.collection('insumos');
     if (_idEditando == null) {
       await col.add(dados);
@@ -144,10 +123,6 @@ class _TelaInsumosState extends State<TelaInsumos> {
       _tipoSelecionado = 'Probiótico';
       _unidadeController.clear();
       _fornecedorController.clear();
-      _loteController.clear();
-      _quantidadeInicialController.clear();
-      _nivelMinimoController.clear();
-      _validade = null;
       _mostrarFormulario = false;
     });
   }
@@ -181,13 +156,6 @@ class _TelaInsumosState extends State<TelaInsumos> {
       _observacoesController.text = data['observacoes'] ?? '';
       _unidadeController.text = data['unidade'] ?? '';
       _fornecedorController.text = data['fornecedor'] ?? '';
-      _loteController.text = data['lote'] ?? '';
-      _quantidadeInicialController.text =
-          data['quantidade_inicial']?.toString() ?? '';
-      _nivelMinimoController.text = (data['nivel_minimo']?.toString() ?? '5');
-      _validade = data['validade'] != null && data['validade'] is Timestamp
-          ? (data['validade'] as Timestamp).toDate()
-          : null; // se era ração antiga pode existir, mas não mais exibido
       _mostrarFormulario = true;
     });
   }
@@ -344,7 +312,6 @@ class _TelaInsumosState extends State<TelaInsumos> {
                               ),
                               const SizedBox(height: 12),
                               Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
                                     child: DropdownButtonFormField<String>(
@@ -370,129 +337,46 @@ class _TelaInsumosState extends State<TelaInsumos> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  if (_tipoSelecionado != 'Ração')
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller:
-                                            _quantidadeInicialController,
-                                        keyboardType:
-                                            const TextInputType.numberWithOptions(
-                                              decimal: true,
-                                            ),
-                                        decoration: const InputDecoration(
-                                          labelText: 'Qtd. Inicial',
-                                        ),
-                                      ),
-                                    )
-                                  else
-                                    Expanded(
-                                      child: Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: Colors.teal[50],
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.teal.withOpacity(0.3),
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          'Estoque inicial da ração é 0. Use "Entrada por Lote" para adicionar.',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.teal,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _nivelMinimoController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      decoration: const InputDecoration(
-                                        labelText: 'Nível mínimo (alerta)',
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Row(
-                                children: [
                                   Expanded(
                                     child: TextFormField(
                                       controller: _fornecedorController,
                                       decoration: const InputDecoration(
-                                        labelText: 'Fornecedor',
+                                        labelText: 'Fornecedor (opcional)',
                                       ),
                                     ),
                                   ),
-                                  if (_tipoSelecionado != 'Ração') ...[
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller: _loteController,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Lote',
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                 ],
                               ),
-                              if (_tipoSelecionado != 'Ração')
-                                Row(
+                              const SizedBox(height: 12),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.blue.withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Row(
                                   children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Colors.blue[700],
+                                    ),
+                                    const SizedBox(width: 8),
                                     Expanded(
-                                      child: InkWell(
-                                        onTap: () async {
-                                          final data = await showDatePicker(
-                                            context: context,
-                                            initialDate:
-                                                _validade ?? DateTime.now(),
-                                            firstDate: DateTime(2020),
-                                            lastDate: DateTime(2100),
-                                            locale: const Locale('pt', 'BR'),
-                                          );
-                                          if (data != null)
-                                            setState(() => _validade = data);
-                                        },
-                                        child: InputDecorator(
-                                          decoration: const InputDecoration(
-                                            labelText: 'Validade',
-                                          ),
-                                          child: Text(
-                                            _validade == null
-                                                ? 'Selecionar'
-                                                : '${_validade!.day.toString().padLeft(2, '0')}/${_validade!.month.toString().padLeft(2, '0')}/${_validade!.year}',
-                                          ),
+                                      child: Text(
+                                        'Estoque, lote, validade e fabricação são controlados na entrada de lotes. Este cadastro é apenas a ficha base do insumo.',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.blue[900],
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              if (_tipoSelecionado == 'Ração') ...[
-                                const SizedBox(height: 12),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.teal[50],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Text(
-                                    'Validade e códigos de lote da ração são controlados somente nas Entradas de Lote. Após cadastrar a ração, utilize o botão "Entrada por Lote" para inserir lotes com validade.',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.teal,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                               const SizedBox(height: 12),
                               ElevatedButton.icon(
                                 icon: Icon(

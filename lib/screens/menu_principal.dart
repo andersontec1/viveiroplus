@@ -10,12 +10,13 @@ import 'package:viveiro_plus/screens/tela_gerenciar_usuarios.dart';
 import 'package:viveiro_plus/screens/tela_listagem_bercarios.dart';
 
 import 'package:viveiro_plus/screens/tela_relatorio_analise_agua.dart';
+import 'package:viveiro_plus/screens/tela_parametrizacao_agua.dart';
 import 'package:viveiro_plus/screens/tela_login.dart';
 import 'package:viveiro_plus/screens/tela_ciclos_viveiro.dart';
 import 'package:viveiro_plus/screens/tela_painel_web.dart';
-import 'package:viveiro_plus/screens/tela_biomassa.dart';
 import 'package:viveiro_plus/screens/tela_insumos_hub.dart';
 import 'package:viveiro_plus/screens/tela_entrega_racao_fornecedor.dart';
+import 'package:viveiro_plus/screens/tela_pontos_entrega.dart';
 
 import '../widgets/degrade_fundo.dart' as degrade_widget;
 import '../helpers/permissions_helper.dart';
@@ -51,7 +52,6 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
     'Painel web': 'Acesse dashboard executivo com gráficos e estatísticas',
     'Insumos': 'Cadastre e gerencie insumos utilizados na produção',
     'Estoque de insumos': 'Controle entrada, saída e níveis de estoque',
-    'Biomassa': 'Registre pesagens e acompanhe crescimento dos camarões',
     'Despesca': 'Gerencie processo de colheita e produção final',
   };
 
@@ -477,6 +477,17 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                 ),
               ),
             },
+            if (temPermissao('parametrizacao_agua'))
+              {
+                'icone': Icons.tune,
+                'texto': 'Parametrização (Água)',
+                'onTap': () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TelaParametrizacaoAgua(),
+                  ),
+                ),
+              },
           ]),
           inicialmenteAberto: true,
           icone: Icons.water_drop,
@@ -496,16 +507,22 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                 MaterialPageRoute(builder: (_) => const TelaListagemRacao()),
               ),
             },
+            if (temPermissao('pontos_entrega'))
+              {
+                'icone': Icons.local_shipping,
+                'texto': 'Pontos de Entrega',
+                'onTap': () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TelaPontosEntrega()),
+                ),
+              },
           ]),
           icone: Icons.set_meal,
         ),
       );
     }
 
-    if (temPermissao('cadastro_viveiro') ||
-        temPermissao('editar_viveiro') ||
-        temPermissao('listar_viveiros') ||
-        temPermissao('listar_bercarios')) {
+    if (temPermissao('listar_viveiros') || temPermissao('listar_bercarios')) {
       categorias.add(
         _categoriaExpansivel(
           'Viveiros e Berçários',
@@ -581,20 +598,14 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                 MaterialPageRoute(builder: (_) => const TelaCiclosViveiro()),
               ),
             },
-            {
-              'icone': Icons.monitor_weight,
-              'texto': 'Cálculo de Biomassa',
-              'onTap': () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TelaBiomassa()),
-              ),
-            },
-            {
-              'icone': Icons.set_meal,
-              'texto': 'Controle de Despesca',
-              'onTap': () =>
-                  Navigator.pushNamed(context, '/despesca_dashboard'),
-            },
+            // Biomassa removido do menu a pedido do usuário
+            if (temPermissao('despesca'))
+              {
+                'icone': Icons.set_meal,
+                'texto': 'Controle de Despesca',
+                'onTap': () =>
+                    Navigator.pushNamed(context, '/despesca_dashboard'),
+              },
           ]),
           icone: Icons.history_toggle_off,
         ),
@@ -636,14 +647,15 @@ class _MenuPrincipalState extends State<MenuPrincipal> {
                 ),
               ),
             },
-            {
-              'icone': Icons.dashboard_customize,
-              'texto': 'Painel Web',
-              'onTap': () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TelaPainelWeb()),
-              ),
-            },
+            if (temPermissao('painel_web'))
+              {
+                'icone': Icons.dashboard_customize,
+                'texto': 'Painel Web',
+                'onTap': () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TelaPainelWeb()),
+                ),
+              },
           ]),
           icone: Icons.bar_chart,
         ),

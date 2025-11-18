@@ -166,14 +166,17 @@ class _TelaSelecaoViveiroDespescaState
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Selecionar Viveiro',
-      body: DegradeFundo(
-        child: _carregando
-            ? const Center(child: CircularProgressIndicator())
-            : _viveirosComCiclo.isEmpty
-            ? _buildSemViveiros()
-            : _buildListaViveiros(),
+    return PopScope(
+      canPop: true,
+      child: AppScaffold(
+        title: 'Selecionar Viveiro',
+        body: DegradeFundo(
+          child: _carregando
+              ? const Center(child: CircularProgressIndicator())
+              : _viveirosComCiclo.isEmpty
+              ? _buildSemViveiros()
+              : _buildListaViveiros(),
+        ),
       ),
     );
   }

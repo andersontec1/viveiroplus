@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/degrade_fundo.dart';
 import '../helpers/estoque_helper.dart';
+import 'tela_pontos_entrega.dart';
 
 class TelaEntradaInsumo extends StatefulWidget {
   const TelaEntradaInsumo({super.key, this.insumoIdPreSelecionado});
@@ -18,6 +19,7 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _insumos = [];
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _lotesAtivos = [];
   bool _carregandoLotes = false;
+  bool _apenasComSaldoLotes = true;
   final _quantidadeCtrl = TextEditingController();
   final _loteCtrl = TextEditingController();
   final _fornecedorCtrl = TextEditingController();
@@ -155,11 +157,16 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
                         child: InputDecorator(
                           decoration: const InputDecoration(
                             labelText: 'Fabricação',
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                           ),
                           child: Text(
                             fabricacao == null
-                                ? 'Selecionar'
+                                ? '—'
                                 : '${fabricacao!.day.toString().padLeft(2, '0')}/${fabricacao!.month.toString().padLeft(2, '0')}/${fabricacao!.year}',
+                            style: const TextStyle(fontSize: 14),
                           ),
                         ),
                       ),
@@ -179,11 +186,16 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
                         child: InputDecorator(
                           decoration: const InputDecoration(
                             labelText: 'Validade',
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                           ),
                           child: Text(
                             validade == null
-                                ? 'Selecionar'
+                                ? '—'
                                 : '${validade!.day.toString().padLeft(2, '0')}/${validade!.month.toString().padLeft(2, '0')}/${validade!.year}',
+                            style: const TextStyle(fontSize: 14),
                           ),
                         ),
                       ),
@@ -328,7 +340,8 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
             : _fornecedorCtrl.text.trim(),
         nfNumero: _nfCtrl.text.trim(),
         precoUnitario: double.tryParse(_precoCtrl.text.replaceAll(',', '.')),
-        localArmazenamento: _localCtrl.text.trim(),
+        // Para ração, a distribuição por ponto define o armazenamento.
+        localArmazenamento: isRacao ? null : _localCtrl.text.trim(),
         observacoes: _obsCtrl.text.trim(),
         entregasPorPonto: _distribuicaoPorPonto.isEmpty
             ? null
@@ -444,6 +457,18 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
                                   strokeWidth: 2,
                                 ),
                               ),
+                            if (!_carregandoLotes)
+                              Row(
+                                children: [
+                                  const Text('Somente com saldo'),
+                                  Switch(
+                                    value: _apenasComSaldoLotes,
+                                    onChanged: (v) => setState(
+                                      () => _apenasComSaldoLotes = v,
+                                    ),
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -457,117 +482,160 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
                           )
                         else
                           Column(
-                            children: _lotesAtivos.map((l) {
-                              final d = l.data();
-                              final val = (d['validade'] as Timestamp?)
-                                  ?.toDate();
-                              final qtd = (d['quantidade'] ?? 0).toString();
-                              final vencido =
-                                  val != null &&
-                                  DateTime(
-                                    val.year,
-                                    val.month,
-                                    val.day,
-                                  ).isBefore(DateTime.now());
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        (d['lote'] ?? '-').toString().isEmpty
-                                            ? '-'
-                                            : d['lote'],
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                          color: vencido
-                                              ? Colors.red
-                                              : Colors.black87,
-                                        ),
-                                      ),
+                            children: _lotesAtivos
+                                .where((l) {
+                                  final d = l.data();
+                                  final qtdNum =
+                                      ((d['quantidade'] ??
+                                                  d['quantidadeAtual'] ??
+                                                  0)
+                                              as num)
+                                          .toDouble();
+                                  if (_apenasComSaldoLotes) return qtdNum > 0;
+                                  return true;
+                                })
+                                .map((l) {
+                                  final d = l.data();
+                                  final val = (d['validade'] as Timestamp?)
+                                      ?.toDate();
+                                  final qtdNum =
+                                      ((d['quantidade'] ??
+                                                  d['quantidadeAtual'] ??
+                                                  0)
+                                              as num)
+                                          .toDouble();
+                                  final qtd = qtdNum.toStringAsFixed(2);
+                                  final vencido =
+                                      val != null &&
+                                      DateTime(
+                                        val.year,
+                                        val.month,
+                                        val.day,
+                                      ).isBefore(DateTime.now());
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 4,
                                     ),
-                                    Text(
-                                      'Qtd: $qtd',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      val != null
-                                          ? '${val.day.toString().padLeft(2, '0')}/${val.month.toString().padLeft(2, '0')}/${val.year}'
-                                          : '-',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: vencido
-                                            ? Colors.red
-                                            : Colors.black54,
-                                      ),
-                                    ),
-                                    PopupMenuButton<String>(
-                                      onSelected: (acao) async {
-                                        if (acao == 'editar') {
-                                          await _abrirEditarLoteDialog(l.id, d);
-                                          await _carregarLotesAtivos();
-                                        } else if (acao == 'inativar') {
-                                          final ok = await showDialog<bool>(
-                                            context: context,
-                                            builder: (_) => AlertDialog(
-                                              title: const Text(
-                                                'Inativar lote?',
-                                              ),
-                                              content: const Text(
-                                                'O lote ficará indisponível para futuras saídas.',
-                                              ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(
-                                                        context,
-                                                        false,
-                                                      ),
-                                                  child: const Text('Cancelar'),
-                                                ),
-                                                ElevatedButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(
-                                                        context,
-                                                        true,
-                                                      ),
-                                                  child: const Text('Inativar'),
-                                                ),
-                                              ],
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            (d['lote'] ?? '-')
+                                                    .toString()
+                                                    .isEmpty
+                                                ? '-'
+                                                : d['lote'],
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              color: vencido
+                                                  ? Colors.red
+                                                  : Colors.black87,
                                             ),
-                                          );
-                                          if (ok == true) {
-                                            await EstoqueHelper.inativarLote(
-                                              loteId: l.id,
-                                            );
-                                            await _carregarLotesAtivos();
-                                          }
-                                        }
-                                      },
-                                      itemBuilder: (_) => const [
-                                        PopupMenuItem(
-                                          value: 'editar',
-                                          child: Text('Editar'),
+                                          ),
                                         ),
-                                        PopupMenuItem(
-                                          value: 'inativar',
-                                          child: Text('Inativar'),
+                                        if (qtdNum <= 0)
+                                          const Padding(
+                                            padding: EdgeInsets.only(
+                                              right: 8.0,
+                                            ),
+                                            child: Chip(
+                                              label: Text('Sem saldo'),
+                                              backgroundColor: Colors.grey,
+                                              labelStyle: TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                            ),
+                                          ),
+                                        Text(
+                                          'Qtd: $qtd',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          val != null
+                                              ? '${val.day.toString().padLeft(2, '0')}/${val.month.toString().padLeft(2, '0')}/${val.year}'
+                                              : '-',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: vencido
+                                                ? Colors.red
+                                                : Colors.black54,
+                                          ),
+                                        ),
+                                        PopupMenuButton<String>(
+                                          onSelected: (acao) async {
+                                            if (acao == 'editar') {
+                                              await _abrirEditarLoteDialog(
+                                                l.id,
+                                                d,
+                                              );
+                                              await _carregarLotesAtivos();
+                                            } else if (acao == 'inativar') {
+                                              final ok = await showDialog<bool>(
+                                                context: context,
+                                                builder: (_) => AlertDialog(
+                                                  title: const Text(
+                                                    'Inativar lote?',
+                                                  ),
+                                                  content: const Text(
+                                                    'O lote ficará indisponível para futuras saídas.',
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            false,
+                                                          ),
+                                                      child: const Text(
+                                                        'Cancelar',
+                                                      ),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            true,
+                                                          ),
+                                                      child: const Text(
+                                                        'Inativar',
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (ok == true) {
+                                                await EstoqueHelper.inativarLote(
+                                                  loteId: l.id,
+                                                );
+                                                await _carregarLotesAtivos();
+                                              }
+                                            }
+                                          },
+                                          itemBuilder: (_) => const [
+                                            PopupMenuItem(
+                                              value: 'editar',
+                                              child: Text('Editar'),
+                                            ),
+                                            PopupMenuItem(
+                                              value: 'inativar',
+                                              child: Text('Inativar'),
+                                            ),
+                                          ],
+                                          tooltip: 'Ações',
+                                          icon: const Icon(
+                                            Icons.more_vert,
+                                            size: 18,
+                                          ),
                                         ),
                                       ],
-                                      tooltip: 'Ações',
-                                      icon: const Icon(
-                                        Icons.more_vert,
-                                        size: 18,
-                                      ),
                                     ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
+                                  );
+                                })
+                                .toList(),
                           ),
                       ],
                     ),
@@ -714,16 +782,21 @@ class _TelaEntradaInsumoState extends State<TelaEntradaInsumo> {
                           children: [
                             const Icon(Icons.local_shipping, size: 18),
                             const SizedBox(width: 6),
-                            Text(
-                              'Distribuição por ponto de entrega' +
-                                  (isRacaoAtual
-                                      ? ' (obrigatória para Ração)'
-                                      : ''),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                            Expanded(
+                              child: Text(
+                                'Distribuição por ponto de entrega' +
+                                    (isRacaoAtual
+                                        ? ' (obrigatória para Ração)'
+                                        : ''),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: true,
                               ),
                             ),
-                            const Spacer(),
+                            const SizedBox(width: 8),
                             TextButton.icon(
                               onPressed: () async {
                                 final result =
@@ -826,6 +899,7 @@ class _DistribuicaoPontoDialogState extends State<_DistribuicaoPontoDialog> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _pontos = [];
   final Map<String, TextEditingController> _qtdCtrls = {};
   final Set<String> _selecionados = {};
+  String? _erro;
 
   @override
   void initState() {
@@ -834,15 +908,40 @@ class _DistribuicaoPontoDialogState extends State<_DistribuicaoPontoDialog> {
   }
 
   Future<void> _carregar() async {
-    final snap = await FirebaseFirestore.instance
-        .collection('pontos_entrega')
-        .where('ativo', isEqualTo: true)
-        .orderBy('nome')
-        .get();
-    setState(() {
-      _pontos = snap.docs;
-      _carregando = false;
-    });
+    try {
+      // Tenta consulta com ordenação por nome; se exigir índice composto, faz fallback
+      Query<Map<String, dynamic>> q = FirebaseFirestore.instance
+          .collection('pontos_entrega')
+          .where('ativo', isEqualTo: true);
+      try {
+        final snap = await q.orderBy('nome').get();
+        setState(() {
+          _pontos = snap.docs;
+          _carregando = false;
+          _erro = null;
+        });
+      } catch (e) {
+        // Fallback: remove orderBy (evita índice composto) e ordena em memória
+        final snap = await q.get();
+        final docs = snap.docs.toList();
+        docs.sort((a, b) {
+          final an = (a.data()['nome'] ?? '').toString().toLowerCase();
+          final bn = (b.data()['nome'] ?? '').toString().toLowerCase();
+          return an.compareTo(bn);
+        });
+        setState(() {
+          _pontos = docs;
+          _carregando = false;
+          _erro = null;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _pontos = [];
+        _carregando = false;
+        _erro = e.toString();
+      });
+    }
   }
 
   @override
@@ -856,7 +955,24 @@ class _DistribuicaoPontoDialogState extends State<_DistribuicaoPontoDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Distribuir por ponto de entrega'),
+      title: Row(
+        children: [
+          const Expanded(child: Text('Distribuir por ponto de entrega')),
+          TextButton.icon(
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TelaPontosEntrega()),
+              );
+              if (!mounted) return;
+              // Recarrega lista ao voltar
+              _carregar();
+            },
+            icon: const Icon(Icons.manage_search, size: 16),
+            label: const Text('Gerenciar'),
+          ),
+        ],
+      ),
       content: SizedBox(
         width: 520,
         child: _carregando
@@ -865,52 +981,69 @@ class _DistribuicaoPontoDialogState extends State<_DistribuicaoPontoDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_erro != null) ...[
+                      Text(
+                        'Erro ao carregar pontos: $_erro',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     const Text(
                       'Selecione os pontos e informe as quantidades (kg):',
                     ),
                     const SizedBox(height: 8),
-                    ..._pontos.map((d) {
-                      final m = d.data();
-                      final id = d.id;
-                      final nome = (m['nome'] ?? '').toString();
-                      _qtdCtrls.putIfAbsent(id, () => TextEditingController());
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: Row(
-                          children: [
-                            Checkbox(
-                              value: _selecionados.contains(id),
-                              onChanged: (v) {
-                                setState(() {
-                                  if (v == true) {
-                                    _selecionados.add(id);
-                                  } else {
-                                    _selecionados.remove(id);
-                                    _qtdCtrls[id]?.text = '';
-                                  }
-                                });
-                              },
-                            ),
-                            Expanded(child: Text(nome)),
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              width: 120,
-                              child: TextField(
-                                controller: _qtdCtrls[id],
-                                enabled: _selecionados.contains(id),
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                decoration: const InputDecoration(
-                                  labelText: 'Quantidade (kg)',
+                    if (_pontos.isEmpty) ...[
+                      const Text(
+                        'Nenhum ponto de entrega ativo cadastrado.',
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                    ] else ...[
+                      ..._pontos.map((d) {
+                        final m = d.data();
+                        final id = d.id;
+                        final nome = (m['nome'] ?? '').toString();
+                        _qtdCtrls.putIfAbsent(
+                          id,
+                          () => TextEditingController(),
+                        );
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                          child: Row(
+                            children: [
+                              Checkbox(
+                                value: _selecionados.contains(id),
+                                onChanged: (v) {
+                                  setState(() {
+                                    if (v == true) {
+                                      _selecionados.add(id);
+                                    } else {
+                                      _selecionados.remove(id);
+                                      _qtdCtrls[id]?.text = '';
+                                    }
+                                  });
+                                },
+                              ),
+                              Expanded(child: Text(nome)),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 120,
+                                child: TextField(
+                                  controller: _qtdCtrls[id],
+                                  enabled: _selecionados.contains(id),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Quantidade (kg)',
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
                   ],
                 ),
               ),

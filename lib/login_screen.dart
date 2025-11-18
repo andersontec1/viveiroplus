@@ -78,22 +78,55 @@ class _LoginScreenState extends State<LoginScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('lembrar_me', _lembrarMe);
 
-      final query = await FirebaseFirestore.instance
+      // Tenta localizar por 'nomeUsuario' (camelCase) e faz fallback para 'nomeusuario' (snake/minúsculo)
+      QuerySnapshot<Map<String, dynamic>> query = await FirebaseFirestore
+          .instance
           .collection('usuarios')
           .where('nomeUsuario', isEqualTo: nomeUsuario)
           .limit(1)
           .get();
 
       if (query.docs.isEmpty) {
+        query = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .where('nomeusuario', isEqualTo: nomeUsuario)
+            .limit(1)
+            .get();
+      }
+
+      if (query.docs.isEmpty) {
         throw Exception('Nome de usuário não encontrado.');
       }
 
+      final docRef = query.docs.first.reference;
       final email = query.docs.first['email'];
 
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: senha,
       );
+
+      // Atualiza o carimbo de último login no documento do usuário usando o UID
+      try {
+        final uid = cred.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          print('DEBUG: Tentando atualizar ultimoLogin para UID: $uid');
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(uid)
+              .update({'ultimoLogin': FieldValue.serverTimestamp()});
+          print('DEBUG: ultimoLogin atualizado com sucesso para UID');
+        }
+        // Fallback: se o doc por UID não existir (dados antigos), atualiza o documento encontrado pela busca
+        print(
+          'DEBUG: Tentando atualizar ultimoLogin no documento encontrado pela busca',
+        );
+        await docRef.update({'ultimoLogin': FieldValue.serverTimestamp()});
+        print('DEBUG: ultimoLogin atualizado com sucesso via docRef');
+      } catch (e) {
+        // Ignora erro de atualização de auditoria para não bloquear o login
+        print('DEBUG: Erro ao atualizar ultimoLogin: $e');
+      }
 
       // Se marcado, mantém o nome de usuário; senão, limpa
       if (_lembrarMe) {
@@ -274,11 +307,18 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<String?> _resolverEmailPorNomeUsuario(String nomeUsuario) async {
     if (nomeUsuario.isEmpty) return null;
     try {
-      final q = await FirebaseFirestore.instance
+      QuerySnapshot<Map<String, dynamic>> q = await FirebaseFirestore.instance
           .collection('usuarios')
           .where('nomeUsuario', isEqualTo: nomeUsuario)
           .limit(1)
           .get();
+      if (q.docs.isEmpty) {
+        q = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .where('nomeusuario', isEqualTo: nomeUsuario)
+            .limit(1)
+            .get();
+      }
       if (q.docs.isEmpty) return null;
       return q.docs.first['email'] as String?;
     } catch (_) {

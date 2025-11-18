@@ -4,7 +4,6 @@ import 'package:flutter/gestures.dart';
 
 /// Monitora inatividade e ciclo de vida do app.
 class SessionManager extends WidgetsBindingObserver {
-
   SessionManager({required this.onSessionTimeout}) {
     WidgetsBinding.instance.addObserver(this);
     _resetTimer();

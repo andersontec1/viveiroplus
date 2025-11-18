@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class ConfirmationHelper {
   /// Exibe um diálogo de confirmação dupla padrão do sistema
-  /// 
+  ///
   /// [context] - Contexto do widget
   /// [title] - Título da primeira confirmação (ex: "Excluir registro?")
   /// [content] - Conteúdo da primeira confirmação
@@ -12,7 +12,7 @@ class ConfirmationHelper {
   /// [actionColor] - Cor do botão de ação (padrão: Colors.red)
   /// [showId] - Se deve mostrar o ID nos dialogs para debug (padrão: false)
   /// [id] - ID do item para debug
-  /// 
+  ///
   /// Retorna [true] se o usuário confirmou, [false] caso contrário
   static Future<bool> showDoubleConfirmation({
     required BuildContext context,
@@ -44,20 +44,39 @@ class ConfirmationHelper {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 child: Column(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.deepOrange, size: 38),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.deepOrange,
+                      size: 38,
+                    ),
                     const SizedBox(height: 6),
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ],
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 18,
+                ),
                 child: Column(
                   children: [
                     Text(content, style: const TextStyle(fontSize: 16)),
                     if (showId && id != null) ...[
                       const SizedBox(height: 8),
-                      Text('ID: $id', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(
+                        'ID: $id',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -69,12 +88,23 @@ class ConfirmationHelper {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(dialogContext, false),
-                      child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                     ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepOrange,
+                      ),
                       onPressed: () => Navigator.pop(dialogContext, true),
-                      child: const Text('Continuar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Continuar',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -84,11 +114,11 @@ class ConfirmationHelper {
         ),
       ),
     );
-    
-  if (confirm1 != true) return false;
 
-  // Evita usar o BuildContext se o widget original foi desmontado
-  if (!context.mounted) return false;
+    if (confirm1 != true) return false;
+
+    // Evita usar o BuildContext se o widget original foi desmontado
+    if (!context.mounted) return false;
 
     // Segundo diálogo de confirmação
     final confirm2 = await showDialog<bool>(
@@ -109,20 +139,43 @@ class ConfirmationHelper {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 child: Column(
                   children: [
-                    Icon(Icons.delete_forever, color: actionColor ?? Colors.red, size: 38),
+                    Icon(
+                      Icons.delete_forever,
+                      color: actionColor ?? Colors.red,
+                      size: 38,
+                    ),
                     const SizedBox(height: 6),
-                    Text(secondTitle ?? 'Confirma exclusão?', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    Text(
+                      secondTitle ?? 'Confirma exclusão?',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ],
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 18,
+                ),
                 child: Column(
                   children: [
-                    Text(secondContent ?? 'Esta ação é irreversível. Deseja realmente excluir?', style: const TextStyle(fontSize: 16)),
+                    Text(
+                      secondContent ??
+                          'Esta ação é irreversível. Deseja realmente excluir?',
+                      style: const TextStyle(fontSize: 16),
+                    ),
                     if (showId && id != null) ...[
                       const SizedBox(height: 8),
-                      Text('ID: $id', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(
+                        'ID: $id',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -134,12 +187,23 @@ class ConfirmationHelper {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(dialogContext, false),
-                      child: const Text('Não', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Não',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                     ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: actionColor ?? Colors.red),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: actionColor ?? Colors.red,
+                      ),
                       onPressed: () => Navigator.pop(dialogContext, true),
-                      child: Text(actionLabel ?? 'Excluir', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        actionLabel ?? 'Excluir',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -154,7 +218,7 @@ class ConfirmationHelper {
   }
 
   /// Exibe um diálogo de sucesso padrão após uma ação
-  /// 
+  ///
   /// [context] - Contexto do widget
   /// [title] - Título do sucesso (padrão: "Sucesso!")
   /// [content] - Conteúdo da mensagem (padrão: "Operação realizada com sucesso.")
@@ -182,22 +246,40 @@ class ConfirmationHelper {
               Container(
                 decoration: BoxDecoration(
                   color: backgroundColor ?? const Color(0xFFB2DFDB),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(18),
+                  ),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 child: Column(
                   children: [
-                    Icon(icon ?? Icons.check_circle, color: iconColor ?? Colors.teal, size: 38),
+                    Icon(
+                      icon ?? Icons.check_circle,
+                      color: iconColor ?? Colors.teal,
+                      size: 38,
+                    ),
                     const SizedBox(height: 6),
-                    Text(title ?? 'Sucesso!', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    Text(
+                      title ?? 'Sucesso!',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ],
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 18,
+                ),
                 child: Column(
                   children: [
-                    Text(content ?? 'Operação realizada com sucesso.', style: const TextStyle(fontSize: 16)),
+                    Text(
+                      content ?? 'Operação realizada com sucesso.',
+                      style: const TextStyle(fontSize: 16),
+                    ),
                   ],
                 ),
               ),
@@ -205,7 +287,10 @@ class ConfirmationHelper {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
@@ -216,7 +301,7 @@ class ConfirmationHelper {
   }
 
   /// Exibe um diálogo de erro padrão
-  /// 
+  ///
   /// [context] - Contexto do widget
   /// [title] - Título do erro (padrão: "Erro")
   /// [content] - Conteúdo da mensagem de erro
@@ -246,25 +331,46 @@ class ConfirmationHelper {
               Container(
                 decoration: BoxDecoration(
                   color: backgroundColor ?? const Color(0xFFFFCDD2),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(18),
+                  ),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 child: Column(
                   children: [
-                    Icon(icon ?? Icons.error, color: iconColor ?? Colors.red, size: 38),
+                    Icon(
+                      icon ?? Icons.error,
+                      color: iconColor ?? Colors.red,
+                      size: 38,
+                    ),
                     const SizedBox(height: 6),
-                    Text(title ?? 'Erro', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    Text(
+                      title ?? 'Erro',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ],
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 18,
+                ),
                 child: Column(
                   children: [
                     Text(content, style: const TextStyle(fontSize: 16)),
                     if (error != null) ...[
                       const SizedBox(height: 8),
-                      Text('Detalhes: $error', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(
+                        'Detalhes: $error',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -273,7 +379,10 @@ class ConfirmationHelper {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Fechar', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Fechar',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
@@ -284,13 +393,10 @@ class ConfirmationHelper {
   }
 
   /// Exibe um loading padrão durante operações
-  /// 
+  ///
   /// [context] - Contexto do widget
   /// [message] - Mensagem a ser exibida (padrão: "Processando...")
-  static void showLoading({
-    required BuildContext context,
-    String? message,
-  }) {
+  static void showLoading({required BuildContext context, String? message}) {
     showDialog(
       context: context,
       barrierDismissible: false,

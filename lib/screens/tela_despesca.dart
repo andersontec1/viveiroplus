@@ -25,15 +25,24 @@ class _TelaDespescaState extends State<TelaDespesca> {
   // Controladores
   final _observacoesCtrl = TextEditingController();
   final _responsavelCtrl = TextEditingController();
+  final _pesoTotalDiaCtrl = TextEditingController();
+  final _quantidadeBasquetasCtrl = TextEditingController();
+  final _biometriaCtrl = TextEditingController();
+  // Lotes (subtotais do dia)
+  final _pesoLoteCtrl = TextEditingController();
+  final _basquetasLoteCtrl = TextEditingController();
+
+  // Data selecionada para o registro do dia (permite lançar retroativo)
+  DateTime _dataRegistro = DateTime.now();
 
   // Estado da despesca
   Map<String, dynamic>? _despescaAtual;
   List<Map<String, dynamic>> _diasDespesca = [];
-  List<Map<String, dynamic>> _basquetas = [];
-  String _buscaBasqueta = '';
+  List<Map<String, dynamic>> _lotesDia = [];
   int _diaAtual = 1;
   String _statusDespesca = 'em_andamento';
   String? _responsavelSelecionado;
+  String? _responsavelNomeAtual;
   Map<String, String> _funcionarios = {};
   final bool _salvando = false;
 
@@ -58,7 +67,13 @@ class _TelaDespescaState extends State<TelaDespesca> {
         final data = doc.data();
         mapa[doc.id] = data['nome'];
       }
-      setState(() => _funcionarios = mapa);
+      setState(() {
+        _funcionarios = mapa;
+        if (_responsavelSelecionado != null) {
+          _responsavelNomeAtual =
+              mapa[_responsavelSelecionado!] ?? _responsavelNomeAtual;
+        }
+      });
     } catch (e) {
       print('Erro ao carregar funcionários: $e');
     }
@@ -71,32 +86,95 @@ class _TelaDespescaState extends State<TelaDespesca> {
           .doc(widget.despescaId)
           .get();
 
-      if (doc.exists) {
-        final data = doc.data()!;
-        setState(() {
-          _despescaAtual = data;
-          _statusDespesca = data['statusDespesca'] ?? 'em_andamento';
-          _diasDespesca = List<Map<String, dynamic>>.from(data['dias'] ?? []);
+      if (!doc.exists) {
+        return;
+      }
 
-          // Verificar se hoje já tem registro
-          final hoje = DateFormat('yyyy-MM-dd').format(DateTime.now());
-          final diaHoje = _diasDespesca.firstWhere(
-            (dia) => dia['data'] == hoje,
-            orElse: () => <String, dynamic>{},
-          );
+      final data = doc.data()!;
+      final dias = List<Map<String, dynamic>>.from(data['dias'] ?? []);
+      final hoje = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final diaHoje = dias.firstWhere(
+        (dia) => dia['data'] == hoje,
+        orElse: () => <String, dynamic>{},
+      );
 
-          if (diaHoje.isNotEmpty) {
-            // Já existe registro de hoje, carregar basquetas
-            _basquetas = List<Map<String, dynamic>>.from(
-              diaHoje['basquetas'] ?? [],
-            );
-            _diaAtual = diaHoje['numeroDia'] ?? (_diasDespesca.length);
-          } else {
-            // Novo dia, começar do zero com numeração sequencial
-            _diaAtual = _diasDespesca.length + 1;
-            _basquetas = [];
-          }
-        });
+      double? pesoTotalDia = (diaHoje['pesoTotal'] as num?)?.toDouble();
+      int? totalBasquetasDia = (diaHoje['totalBasquetas'] as num?)?.toInt();
+      double? biometriaDia =
+          (diaHoje['biometriaPesoMedio'] as num?)?.toDouble() ??
+          (diaHoje['biometria'] as num?)?.toDouble();
+      final observacoesDia = diaHoje['observacoes']?.toString() ?? '';
+      String? responsavelId = diaHoje['responsavelId'] as String?;
+      String responsavelNome = diaHoje['responsavel']?.toString() ?? '';
+
+      // Suporte a múltiplos lotes por dia
+      final lotes = List<Map<String, dynamic>>.from(
+        diaHoje['lotes'] ?? const [],
+      );
+
+      final basquetasAntigas = List<Map<String, dynamic>>.from(
+        diaHoje['basquetas'] ?? [],
+      );
+      if (pesoTotalDia == null && basquetasAntigas.isNotEmpty) {
+        pesoTotalDia = basquetasAntigas.fold<double>(
+          0.0,
+          (sum, basqueta) =>
+              sum + ((basqueta['peso'] as num?)?.toDouble() ?? 0.0),
+        );
+      }
+      if (totalBasquetasDia == null && basquetasAntigas.isNotEmpty) {
+        totalBasquetasDia = basquetasAntigas.length;
+      }
+
+      // Fallback para registros antigos sem "lotes":
+      // se não houver lotes, mas houver totais/basquetas antigas,
+      // cria um lote único para manter compatibilidade de edição
+      if (lotes.isEmpty &&
+          (pesoTotalDia != null || totalBasquetasDia != null)) {
+        final loteUnico = <String, dynamic>{
+          'pesoTotal': (pesoTotalDia ?? 0.0),
+          'totalBasquetas': (totalBasquetasDia ?? 0),
+        };
+        _lotesDia = [loteUnico];
+      } else {
+        _lotesDia = lotes;
+      }
+
+      if (diaHoje.isEmpty && dias.isNotEmpty) {
+        final ultimoDia = dias.last;
+        responsavelId ??= ultimoDia['responsavelId'] as String?;
+        responsavelNome =
+            ultimoDia['responsavel']?.toString() ?? responsavelNome;
+      }
+
+      setState(() {
+        _despescaAtual = data;
+        _statusDespesca = data['statusDespesca'] ?? 'em_andamento';
+        _diasDespesca = dias;
+        _diaAtual = diaHoje.isNotEmpty
+            ? (diaHoje['numeroDia'] as int? ?? dias.length)
+            : dias.length + 1;
+        // Por padrão, editar/lançar para a data de hoje
+        _dataRegistro = DateTime.now();
+        _responsavelSelecionado = responsavelId;
+        _responsavelNomeAtual = responsavelNome;
+      });
+
+      _pesoTotalDiaCtrl.text = pesoTotalDia != null
+          ? _formatDouble(pesoTotalDia)
+          : '';
+      _quantidadeBasquetasCtrl.text = totalBasquetasDia != null
+          ? '$totalBasquetasDia'
+          : '';
+      _biometriaCtrl.text = biometriaDia != null
+          ? _formatDouble(biometriaDia)
+          : '';
+      _observacoesCtrl.text = observacoesDia;
+
+      if (responsavelId == null) {
+        _responsavelCtrl.text = responsavelNome;
+      } else {
+        _responsavelCtrl.clear();
       }
     } catch (e) {
       if (mounted) {
@@ -110,52 +188,206 @@ class _TelaDespescaState extends State<TelaDespesca> {
     }
   }
 
+  // Selecionar/alterar a data do registro do dia
+  Future<void> _selecionarDataRegistro() async {
+    final agora = DateTime.now();
+    final selecionada = await showDatePicker(
+      context: context,
+      initialDate: _dataRegistro,
+      firstDate: DateTime(agora.year - 1, 1, 1),
+      lastDate: DateTime(agora.year, agora.month, agora.day),
+      helpText: 'Selecionar data do registro',
+      confirmText: 'Selecionar',
+      cancelText: 'Cancelar',
+    );
+
+    if (selecionada == null) return;
+
+    // Ao mudar a data, tentar carregar o dia existente (se houver)
+    final chave = DateFormat('yyyy-MM-dd').format(selecionada);
+    final existente = _diasDespesca.firstWhere(
+      (d) => d['data'] == chave,
+      orElse: () => <String, dynamic>{},
+    );
+
+    setState(() {
+      _dataRegistro = selecionada;
+
+      if (existente.isNotEmpty) {
+        // Carrega registros e campos desse dia para edição
+        final lotes = List<Map<String, dynamic>>.from(
+          existente['lotes'] ?? const [],
+        );
+
+        final basquetasAntigas = List<Map<String, dynamic>>.from(
+          existente['basquetas'] ?? [],
+        );
+
+        if (lotes.isEmpty && basquetasAntigas.isNotEmpty) {
+          final pesoTotalDia = basquetasAntigas.fold<double>(
+            0.0,
+            (sum, b) => sum + ((b['peso'] as num?)?.toDouble() ?? 0.0),
+          );
+          final totalBasquetasDia = basquetasAntigas.length;
+          _lotesDia = [
+            {'pesoTotal': pesoTotalDia, 'totalBasquetas': totalBasquetasDia},
+          ];
+        } else {
+          _lotesDia = lotes;
+        }
+
+        final biometriaDia =
+            (existente['biometriaPesoMedio'] as num?)?.toDouble() ??
+            (existente['biometria'] as num?)?.toDouble();
+        _biometriaCtrl.text = biometriaDia != null
+            ? _formatDouble(biometriaDia)
+            : '';
+        _observacoesCtrl.text = existente['observacoes']?.toString() ?? '';
+
+        final respId = existente['responsavelId'] as String?;
+        final respNome = existente['responsavel']?.toString() ?? '';
+        _responsavelSelecionado = respId;
+        _responsavelNomeAtual = respId != null
+            ? (_funcionarios[respId] ?? respNome)
+            : respNome;
+        if (respId == null) {
+          _responsavelCtrl.text = respNome;
+        } else {
+          _responsavelCtrl.clear();
+        }
+
+        // Número do dia: usar o armazenado ou calcular pela ordem
+        _diaAtual =
+            (existente['numeroDia'] as int?) ?? _calcularNumeroDia(selecionada);
+      } else {
+        // Novo dia selecionado: limpa campos de dia
+        _lotesDia = [];
+        _biometriaCtrl.clear();
+        _observacoesCtrl.clear();
+        // Mantém responsável atual selecionado/digitado
+        _diaAtual = _calcularNumeroDia(selecionada);
+      }
+    });
+  }
+
+  int _calcularNumeroDia(DateTime data) {
+    // Calcula posição 1-based considerando ordem cronológica das datas existentes
+    final datas =
+        _diasDespesca
+            .map((d) => d['data']?.toString())
+            .whereType<String>()
+            .map((s) => DateFormat('yyyy-MM-dd').parse(s))
+            .toList()
+          ..sort();
+    // Garante a inclusão da data selecionada
+    datas.add(data);
+    datas.sort();
+    final pos = datas.indexWhere(
+      (d) => d.year == data.year && d.month == data.month && d.day == data.day,
+    );
+    return (pos >= 0 ? pos : datas.length - 1) + 1;
+  }
+
+  void _sincronizarNumeroDiaOrdenando() {
+    _diasDespesca.sort((a, b) {
+      final sa = a['data']?.toString() ?? '';
+      final sb = b['data']?.toString() ?? '';
+      return sa.compareTo(sb);
+    });
+    for (var i = 0; i < _diasDespesca.length; i++) {
+      _diasDespesca[i]['numeroDia'] = i + 1;
+    }
+    // Atualiza _diaAtual com base na data selecionada
+    final chave = DateFormat('yyyy-MM-dd').format(_dataRegistro);
+    final idx = _diasDespesca.indexWhere((d) => d['data'] == chave);
+    if (idx >= 0)
+      _diaAtual = _diasDespesca[idx]['numeroDia'] as int? ?? (idx + 1);
+  }
+
   Future<void> _salvarDiaAtual() async {
-    if (_basquetas.isEmpty) return;
+    // Validação: é necessário pelo menos um lote no dia
+    if (_lotesDia.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Adicione ao menos um lote para salvar o dia.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Valida biometria (se fornecida) via form
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
     try {
-      final hoje = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      final pesoTotalDia = _basquetas.fold(
+      // Usa a data selecionada (padrão: hoje)
+      final dataSelecionadaStr = DateFormat('yyyy-MM-dd').format(_dataRegistro);
+      // Calcula totais do dia com base nos lotes
+      final pesoTotalDia = _lotesDia.fold<double>(
         0.0,
-        (sum, b) => sum + (b['peso'] ?? 0.0),
+        (sum, lote) => sum + ((lote['pesoTotal'] as num?)?.toDouble() ?? 0.0),
       );
+      final totalBasquetasDia = _lotesDia.fold<int>(
+        0,
+        (sum, lote) => sum + ((lote['totalBasquetas'] as num?)?.toInt() ?? 0),
+      );
+      final biometriaDia = _parseDouble(_biometriaCtrl.text);
 
-      // Dados do dia atual
-      final diaAtual = {
-        'data': hoje,
+      String responsavelNome = (_responsavelNomeAtual ?? '').trim();
+      if (_responsavelSelecionado != null && responsavelNome.isEmpty) {
+        responsavelNome =
+            _funcionarios[_responsavelSelecionado!] ?? responsavelNome;
+      }
+      if (_responsavelSelecionado == null) {
+        responsavelNome = _responsavelCtrl.text.trim();
+      }
+
+      final diaAtual = <String, dynamic>{
+        'data': dataSelecionadaStr,
         'numeroDia': _diaAtual,
-        'basquetas': _basquetas,
-        'totalBasquetas': _basquetas.length,
+        'totalBasquetas': totalBasquetasDia,
         'pesoTotal': pesoTotalDia,
+        'lotes': _lotesDia,
         'observacoes': _observacoesCtrl.text.trim(),
-        'responsavel': _responsavelSelecionado != null
-            ? _funcionarios[_responsavelSelecionado!]
-            : _responsavelCtrl.text.trim(),
+        'responsavel': responsavelNome,
         'responsavelId': _responsavelSelecionado,
         'salvoEm': Timestamp.now(),
       };
 
-      // Atualizar ou adicionar o dia na lista
-      final indexDiaExistente = _diasDespesca.indexWhere(
-        (dia) => dia['data'] == hoje,
-      );
-      if (indexDiaExistente >= 0) {
-        _diasDespesca[indexDiaExistente] = diaAtual;
-      } else {
-        _diasDespesca.add(diaAtual);
+      if (biometriaDia != null) {
+        diaAtual['biometriaPesoMedio'] = biometriaDia;
       }
 
-      // Calcular totais gerais
-      final pesoTotalGeral = _diasDespesca.fold(
-        0.0,
-        (sum, dia) => sum + (dia['pesoTotal'] ?? 0.0),
-      );
-      final basquetasTotalGeral = _diasDespesca.fold(
-        0,
-        (sum, dia) => sum + (dia['totalBasquetas'] as int? ?? 0),
+      final indexDiaExistente = _diasDespesca.indexWhere(
+        (dia) => dia['data'] == dataSelecionadaStr,
       );
 
-      // Salvar no Firebase
+      setState(() {
+        if (indexDiaExistente >= 0) {
+          _diasDespesca[indexDiaExistente] = diaAtual;
+        } else {
+          _diasDespesca.add(diaAtual);
+        }
+        _responsavelNomeAtual = responsavelNome;
+      });
+
+      if (_responsavelSelecionado == null) {
+        _responsavelCtrl.text = responsavelNome;
+      }
+
+      final pesoTotalGeral = _diasDespesca.fold<double>(
+        0.0,
+        (sum, dia) => sum + ((dia['pesoTotal'] as num?)?.toDouble() ?? 0.0),
+      );
+      final basquetasTotalGeral = _diasDespesca.fold<int>(
+        0,
+        (sum, dia) => sum + ((dia['totalBasquetas'] as num?)?.toInt() ?? 0),
+      );
+
       await FirebaseFirestore.instance
           .collection('despescas')
           .doc(widget.despescaId)
@@ -187,67 +419,6 @@ class _TelaDespescaState extends State<TelaDespesca> {
     }
   }
 
-  Future<void> _adicionarBasqueta() async {
-    final proximoNumero = _basquetas.length + 1;
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => _DialogBasqueta(numeroBasqueta: proximoNumero),
-    );
-
-    if (result != null) {
-      setState(() {
-        _basquetas.add(result);
-      });
-      await _salvarDiaAtual(); // Salvar automaticamente
-    }
-  }
-
-  Future<void> _editarBasqueta(int index) async {
-    final basqueta = _basquetas[index];
-    final numeroBasqueta = basqueta['numero'] ?? (index + 1);
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => _DialogBasqueta(
-        basquetaInicial: basqueta,
-        numeroBasqueta: numeroBasqueta,
-      ),
-    );
-
-    if (result != null) {
-      setState(() {
-        _basquetas[index] = result;
-      });
-      await _salvarDiaAtual(); // Salvar automaticamente
-    }
-  }
-
-  Future<void> _excluirBasqueta(int index) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirmar Exclusão'),
-        content: Text('Deseja excluir a basqueta ${index + 1}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      setState(() {
-        _basquetas.removeAt(index);
-      });
-      await _salvarDiaAtual(); // Salvar automaticamente
-    }
-  }
-
   Future<void> _finalizarDespesca() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -270,27 +441,67 @@ class _TelaDespescaState extends State<TelaDespesca> {
     );
 
     if (confirm == true) {
-      setState(() => _statusDespesca = 'concluida');
-      await _salvarDiaAtual();
+      try {
+        // Garante numeração e ordenação
+        setState(() => _statusDespesca = 'concluida');
+        _sincronizarNumeroDiaOrdenando();
 
-      if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/despesca_dashboard',
-          (route) => false,
+        // Recalcula totais gerais com base em todos os dias em memória
+        final pesoTotalGeral = _diasDespesca.fold<double>(
+          0.0,
+          (sum, dia) => sum + ((dia['pesoTotal'] as num?)?.toDouble() ?? 0.0),
         );
+        final basquetasTotalGeral = _diasDespesca.fold<int>(
+          0,
+          (sum, dia) => sum + ((dia['totalBasquetas'] as num?)?.toInt() ?? 0),
+        );
+
+        await FirebaseFirestore.instance
+            .collection('despescas')
+            .doc(widget.despescaId)
+            .update({
+              'dias': _diasDespesca,
+              'pesoTotal': pesoTotalGeral,
+              'basquetasTotal': basquetasTotalGeral,
+              'statusDespesca': 'concluida',
+              'dataFinalizacao': Timestamp.now(),
+              'ultimaAtualizacao': Timestamp.now(),
+            });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Despesca finalizada com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Volta para o dashboard mantendo o histórico para permitir voltar ao menu
+          Navigator.pushReplacementNamed(context, '/despesca_dashboard');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erro ao finalizar despesca: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Despesca ${widget.codigoViveiro}',
-      body: DegradeFundo(
-        child: _despescaAtual == null
-            ? const Center(child: CircularProgressIndicator())
-            : _buildConteudo(),
+    return PopScope(
+      canPop: true,
+      child: AppScaffold(
+        title: 'Despesca ${widget.codigoViveiro}',
+        body: DegradeFundo(
+          child: _despescaAtual == null
+              ? const Center(child: CircularProgressIndicator())
+              : _buildConteudo(),
+        ),
       ),
     );
   }
@@ -309,8 +520,8 @@ class _TelaDespescaState extends State<TelaDespesca> {
           _buildResponsavel(),
           const SizedBox(height: 16),
 
-          // Basquetas
-          _buildSecaoBasquetas(),
+          // Registro do dia
+          _buildRegistroDia(),
           const SizedBox(height: 16),
 
           // Observações
@@ -325,13 +536,13 @@ class _TelaDespescaState extends State<TelaDespesca> {
   }
 
   Widget _buildInfoDespesca() {
-    final pesoTotal = _diasDespesca.fold(
+    final pesoTotal = _diasDespesca.fold<double>(
       0.0,
-      (sum, dia) => sum + (dia['pesoTotal'] ?? 0.0),
+      (sum, dia) => sum + ((dia['pesoTotal'] as num?)?.toDouble() ?? 0.0),
     );
-    final basquetasTotal = _diasDespesca.fold(
+    final basquetasTotal = _diasDespesca.fold<int>(
       0,
-      (sum, dia) => sum + (dia['totalBasquetas'] as int? ?? 0),
+      (sum, dia) => sum + ((dia['totalBasquetas'] as num?)?.toInt() ?? 0),
     );
 
     return Card(
@@ -388,7 +599,7 @@ class _TelaDespescaState extends State<TelaDespesca> {
                   child: Column(
                     children: [
                       Text(
-                        '${pesoTotal.toStringAsFixed(1)} kg',
+                        '${_formatDouble(pesoTotal, maxDecimals: 1)} kg',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -449,8 +660,13 @@ class _TelaDespescaState extends State<TelaDespesca> {
                         child: Text(e.value),
                       );
                     }).toList(),
-                    onChanged: (v) =>
-                        setState(() => _responsavelSelecionado = v),
+                    onChanged: (v) => setState(() {
+                      _responsavelSelecionado = v;
+                      if (v != null) {
+                        _responsavelNomeAtual = _funcionarios[v];
+                        _responsavelCtrl.clear();
+                      }
+                    }),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -464,8 +680,10 @@ class _TelaDespescaState extends State<TelaDespesca> {
                       prefixIcon: Icon(Icons.edit),
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (_) =>
-                        setState(() => _responsavelSelecionado = null),
+                    onChanged: (value) => setState(() {
+                      _responsavelSelecionado = null;
+                      _responsavelNomeAtual = value.trim();
+                    }),
                   ),
                 ),
               ],
@@ -476,21 +694,16 @@ class _TelaDespescaState extends State<TelaDespesca> {
     );
   }
 
-  Widget _buildSecaoBasquetas() {
-    double totalPeso = _basquetas.fold(
+  Widget _buildRegistroDia() {
+    final pesoTotalDia = _lotesDia.fold<double>(
       0.0,
-      (sum, basqueta) => sum + (basqueta['peso'] ?? 0.0),
+      (sum, lote) => sum + ((lote['pesoTotal'] as num?)?.toDouble() ?? 0.0),
     );
-    int totalQuantidade = _basquetas.length;
-
-    // Filtrar basquetas baseado na busca
-    List<Map<String, dynamic>> basquetasFiltradas = _basquetas.where((
-      basqueta,
-    ) {
-      if (_buscaBasqueta.isEmpty) return true;
-      final numeroBasqueta = basqueta['numero']?.toString() ?? '';
-      return numeroBasqueta.contains(_buscaBasqueta);
-    }).toList();
+    final totalBasquetasDia = _lotesDia.fold<int>(
+      0,
+      (sum, lote) => sum + ((lote['totalBasquetas'] as num?)?.toInt() ?? 0),
+    );
+    final biometriaDia = _parseDouble(_biometriaCtrl.text);
 
     return Card(
       child: Padding(
@@ -498,36 +711,41 @@ class _TelaDespescaState extends State<TelaDespesca> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Basquetas do Dia',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _adicionarBasqueta,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Adicionar'),
-                ),
-              ],
+            const Text(
+              'Registro do Dia',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-
-            // Campo de busca (só mostra se houver basquetas)
-            if (_basquetas.isNotEmpty) ...[
-              TextField(
+            // Data do registro (permite lançar retroativo)
+            InkWell(
+              onTap: _selecionarDataRegistro,
+              child: InputDecorator(
                 decoration: const InputDecoration(
-                  labelText: 'Buscar por número da basqueta',
-                  prefixIcon: Icon(Icons.search),
+                  labelText: 'Data do registro',
+                  prefixIcon: Icon(Icons.calendar_today),
                   border: OutlineInputBorder(),
                 ),
-                onChanged: (value) => setState(() => _buscaBasqueta = value),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      Text(
+                        DateFormat('dd/MM/yyyy').format(_dataRegistro),
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: _selecionarDataRegistro,
+                        icon: const Icon(Icons.edit_calendar),
+                        label: const Text('Alterar'),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 12),
-            ],
-
-            // Totais do dia
+            ),
+            const SizedBox(height: 16),
+            // Resumo do dia
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -535,129 +753,249 @@ class _TelaDespescaState extends State<TelaDespesca> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Column(
-                    children: [
-                      Text(
-                        '$totalQuantidade',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          '${_formatDouble(pesoTotalDia, maxDecimals: 1)} kg',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const Text('Basquetas Hoje'),
-                    ],
+                        const Text('Peso Hoje'),
+                      ],
+                    ),
                   ),
-                  Column(
-                    children: [
-                      Text(
-                        '${totalPeso.toStringAsFixed(1)} kg',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          '$totalBasquetasDia',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const Text('Peso Hoje'),
-                    ],
+                        const Text('Basquetas Hoje'),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          biometriaDia != null
+                              ? '${_formatDouble(biometriaDia, maxDecimals: 2)} g'
+                              : '--',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Text('Biometria'),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-
-            // Lista de basquetas
-            if (_basquetas.isNotEmpty) ...[
-              if (basquetasFiltradas.isNotEmpty)
-                ...basquetasFiltradas.map((basqueta) {
-                  final index = _basquetas.indexOf(basqueta);
-                  final numeroBasqueta = basqueta['numero'] ?? (index + 1);
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.blue.shade600,
-                        child: Text(
-                          '#$numeroBasqueta',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+            const SizedBox(height: 16),
+            // Adicionar lote
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _pesoLoteCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Peso total das Basquetas',
+                      prefixIcon: Icon(Icons.monitor_weight),
+                      border: OutlineInputBorder(),
+                      suffixText: 'kg',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _basquetasLoteCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Quantidade de Basquetas',
+                      prefixIcon: Icon(Icons.inventory_2),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final peso = _parseDouble(_pesoLoteCtrl.text);
+                    final qtd = _parseInt(_basquetasLoteCtrl.text);
+                    if (peso == null || peso <= 0 || qtd == null || qtd <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Informe peso e basquetas válidos para o registro.',
                           ),
+                          backgroundColor: Colors.orange,
                         ),
+                      );
+                      return;
+                    }
+
+                    // Adiciona registro ao dia atualmente selecionado
+                    final dataStr = DateFormat(
+                      'yyyy-MM-dd',
+                    ).format(_dataRegistro);
+                    // Atualiza lista da UI do dia
+                    setState(() {
+                      _lotesDia.add({'pesoTotal': peso, 'totalBasquetas': qtd});
+                      _pesoLoteCtrl.clear();
+                      _basquetasLoteCtrl.clear();
+                    });
+
+                    // Recalcula totais do dia e reflete em _diasDespesca (memória)
+                    final pesoTotalDia = _lotesDia.fold<double>(
+                      0.0,
+                      (sum, l) =>
+                          sum + ((l['pesoTotal'] as num?)?.toDouble() ?? 0.0),
+                    );
+                    final totalBasquetasDia = _lotesDia.fold<int>(
+                      0,
+                      (sum, l) =>
+                          sum + ((l['totalBasquetas'] as num?)?.toInt() ?? 0),
+                    );
+                    final biometriaDia = _parseDouble(_biometriaCtrl.text);
+
+                    String responsavelNome = (_responsavelNomeAtual ?? '')
+                        .trim();
+                    if (_responsavelSelecionado != null &&
+                        responsavelNome.isEmpty) {
+                      responsavelNome =
+                          _funcionarios[_responsavelSelecionado!] ??
+                          responsavelNome;
+                    }
+                    if (_responsavelSelecionado == null) {
+                      responsavelNome = _responsavelCtrl.text.trim();
+                    }
+
+                    final idxExistente = _diasDespesca.indexWhere(
+                      (d) => d['data'] == dataStr,
+                    );
+                    final mapDia = <String, dynamic>{
+                      'data': dataStr,
+                      'numeroDia': idxExistente >= 0
+                          ? (_diasDespesca[idxExistente]['numeroDia'] as int? ??
+                                _calcularNumeroDia(_dataRegistro))
+                          : _calcularNumeroDia(_dataRegistro),
+                      'totalBasquetas': totalBasquetasDia,
+                      'pesoTotal': pesoTotalDia,
+                      'lotes': List<Map<String, dynamic>>.from(_lotesDia),
+                      'observacoes': _observacoesCtrl.text.trim(),
+                      'responsavel': responsavelNome,
+                      'responsavelId': _responsavelSelecionado,
+                      'atualizadoEm': Timestamp.now(),
+                    };
+                    if (biometriaDia != null) {
+                      mapDia['biometriaPesoMedio'] = biometriaDia;
+                    }
+
+                    setState(() {
+                      if (idxExistente >= 0) {
+                        _diasDespesca[idxExistente] = mapDia;
+                      } else {
+                        _diasDespesca.add(mapDia);
+                      }
+                      _sincronizarNumeroDiaOrdenando();
+                    });
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Adicionar Registro'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Lista de lotes
+            if (_lotesDia.isNotEmpty) ...[
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Registros adicionados',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._lotesDia.asMap().entries.map((entry) {
+                    final index = entry.key + 1;
+                    final lote = entry.value;
+                    final peso = (lote['pesoTotal'] as num?)?.toDouble() ?? 0.0;
+                    final qtd = (lote['totalBasquetas'] as num?)?.toInt() ?? 0;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
                       ),
-                      title: Text(
-                        'Basqueta #$numeroBasqueta',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Text('Peso: ${basqueta['peso']} kg'),
-                          if (basqueta['observacoes'] != null &&
-                              basqueta['observacoes'].toString().isNotEmpty)
-                            Text(
-                              'Obs: ${basqueta['observacoes']}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
+                          Expanded(
+                            child: Text(
+                              'Registro $index: ${_formatDouble(peso, maxDecimals: 1)} kg • $qtd basquetas',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _editarBasqueta(index),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => _excluirBasqueta(index),
+                            tooltip: 'Remover registro',
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () {
+                              setState(() {
+                                _lotesDia.removeAt(entry.key);
+                              });
+                            },
                           ),
                         ],
                       ),
-                    ),
-                  );
-                }),
-
-              if (basquetasFiltradas.isEmpty && _buscaBasqueta.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 48,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Nenhuma basqueta encontrada com o número "$_buscaBasqueta"',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-
-            if (_basquetas.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(20),
-                child: const Center(
-                  child: Text(
-                    'Nenhuma basqueta adicionada ainda.\nClique em "Adicionar" para começar.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
+                    );
+                  }).toList(),
+                ],
               ),
+              const SizedBox(height: 8),
+            ],
+            // Biometria
+            TextFormField(
+              controller: _biometriaCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Biometria (peso médio)',
+                helperText: 'Opcional: peso médio dos camarões em gramas',
+                prefixIcon: Icon(Icons.scale),
+                suffixText: 'g',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return null;
+                }
+                final parsed = _parseDouble(value);
+                if (parsed == null || parsed <= 0) {
+                  return 'Informe uma biometria válida';
+                }
+                return null;
+              },
+            ),
           ],
         ),
       ),
@@ -728,143 +1066,41 @@ class _TelaDespescaState extends State<TelaDespesca> {
     );
   }
 
+  double? _parseDouble(String? value) {
+    if (value == null) return null;
+    var sanitized = value.trim();
+    if (sanitized.isEmpty) return null;
+    if (sanitized.contains(',') && sanitized.contains('.')) {
+      sanitized = sanitized.replaceAll('.', '');
+    }
+    sanitized = sanitized.replaceAll(',', '.');
+    return double.tryParse(sanitized);
+  }
+
+  int? _parseInt(String? value) {
+    final parsed = _parseDouble(value);
+    if (parsed == null || parsed % 1 != 0) {
+      return null;
+    }
+    return parsed.toInt();
+  }
+
+  String _formatDouble(double value, {int maxDecimals = 2}) {
+    final isInt = value.truncateToDouble() == value;
+    final decimals = isInt ? 0 : maxDecimals;
+    final fixed = value.toStringAsFixed(decimals);
+    return fixed.replaceAll('.', ',');
+  }
+
   @override
   void dispose() {
     _observacoesCtrl.dispose();
     _responsavelCtrl.dispose();
-    super.dispose();
-  }
-}
-
-// Dialog para adicionar/editar basqueta
-class _DialogBasqueta extends StatefulWidget {
-  const _DialogBasqueta({this.basquetaInicial, required this.numeroBasqueta});
-  final Map<String, dynamic>? basquetaInicial;
-  final int numeroBasqueta;
-
-  @override
-  State<_DialogBasqueta> createState() => _DialogBasquetaState();
-}
-
-class _DialogBasquetaState extends State<_DialogBasqueta> {
-  final _formKey = GlobalKey<FormState>();
-  final _pesoCtrl = TextEditingController();
-  final _observacoesCtrl = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.basquetaInicial != null) {
-      _pesoCtrl.text = widget.basquetaInicial!['peso']?.toString() ?? '';
-      _observacoesCtrl.text = widget.basquetaInicial!['observacoes'] ?? '';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        widget.basquetaInicial == null
-            ? 'Basqueta #${widget.numeroBasqueta}'
-            : 'Editar Basqueta #${widget.numeroBasqueta}',
-      ),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.tag, color: Colors.blue.shade700),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Número da Basqueta: ${widget.numeroBasqueta}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _pesoCtrl,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Peso da Basqueta',
-                prefixIcon: Icon(Icons.monitor_weight),
-                border: OutlineInputBorder(),
-                suffixText: 'kg',
-                helperText: 'Registre o peso exato desta basqueta',
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty)
-                  return 'Informe o peso da basqueta';
-                if (double.tryParse(value) == null)
-                  return 'Informe um peso válido';
-                if (double.parse(value) <= 0)
-                  return 'O peso deve ser maior que zero';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _observacoesCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Observações (opcional)',
-                prefixIcon: Icon(Icons.note),
-                border: OutlineInputBorder(),
-                hintText:
-                    'Ex: Camarões de tamanho grande, qualidade excelente...',
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          onPressed: _salvar,
-          child: Text(widget.basquetaInicial == null ? 'Adicionar' : 'Salvar'),
-        ),
-      ],
-    );
-  }
-
-  void _salvar() {
-    if (_formKey.currentState!.validate()) {
-      final basqueta = {
-        'numero': widget.numeroBasqueta,
-        'peso': double.parse(_pesoCtrl.text),
-        'observacoes': _observacoesCtrl.text,
-        'adicionadaEm': Timestamp.now(),
-      };
-
-      Navigator.pop(context, basqueta);
-    }
-  }
-
-  @override
-  void dispose() {
-    _pesoCtrl.dispose();
-    _observacoesCtrl.dispose();
+    _pesoTotalDiaCtrl.dispose();
+    _quantidadeBasquetasCtrl.dispose();
+    _biometriaCtrl.dispose();
+    _pesoLoteCtrl.dispose();
+    _basquetasLoteCtrl.dispose();
     super.dispose();
   }
 }

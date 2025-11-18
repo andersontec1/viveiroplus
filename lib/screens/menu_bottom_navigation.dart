@@ -10,7 +10,7 @@ class MenuBottomNavigation extends StatefulWidget {
 
 class _MenuBottomNavigationState extends State<MenuBottomNavigation> {
   int _currentIndex = 0;
-  
+
   final List<Widget> _pages = [
     const _HomeTab(),
     const _AnaliseTab(),
@@ -26,10 +26,7 @@ class _MenuBottomNavigationState extends State<MenuBottomNavigation> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [
-              Color(0xFF049F56),
-              Color(0xFF045D3A),
-            ],
+            colors: [Color(0xFF049F56), Color(0xFF045D3A)],
           ),
           boxShadow: [
             BoxShadow(
@@ -58,10 +55,7 @@ class _MenuBottomNavigationState extends State<MenuBottomNavigation> {
               icon: Icon(Icons.water_drop),
               label: 'Análise',
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.set_meal),
-              label: 'Ração',
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.set_meal), label: 'Ração'),
             BottomNavigationBarItem(
               icon: Icon(Icons.bar_chart),
               label: 'Relatórios',
@@ -98,10 +92,7 @@ class _HomeTab extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  color.withOpacity(0.8),
-                  color,
-                ],
+                colors: [color.withOpacity(0.8), color],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -167,7 +158,7 @@ class _HomeTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Primeira linha de ações
             Row(
               children: [
@@ -197,9 +188,9 @@ class _HomeTab extends StatelessWidget {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             // Status Cards
             const Text(
               'Status Geral',
@@ -210,7 +201,7 @@ class _HomeTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Cards de status
             Container(
               padding: const EdgeInsets.all(20),
@@ -222,9 +213,7 @@ class _HomeTab extends StatelessWidget {
                   ],
                 ),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
-                ),
+                border: Border.all(color: Colors.white.withOpacity(0.3)),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -238,24 +227,44 @@ class _HomeTab extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildStatusItem('Viveiros Ativos', '12', Icons.water, Colors.blue),
-                      _buildStatusItem('Análises Hoje', '8', Icons.science, Colors.green),
+                      _buildStatusItem(
+                        'Viveiros Ativos',
+                        '12',
+                        Icons.water,
+                        Colors.blue,
+                      ),
+                      _buildStatusItem(
+                        'Análises Hoje',
+                        '8',
+                        Icons.science,
+                        Colors.green,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildStatusItem('Pendências', '3', Icons.warning, Colors.orange),
-                      _buildStatusItem('Última Ração', '2h', Icons.schedule, Colors.purple),
+                      _buildStatusItem(
+                        'Pendências',
+                        '3',
+                        Icons.warning,
+                        Colors.orange,
+                      ),
+                      _buildStatusItem(
+                        'Última Ração',
+                        '2h',
+                        Icons.schedule,
+                        Colors.purple,
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             // Menu completo em lista
             const Text(
               'Menu Completo',
@@ -266,7 +275,7 @@ class _HomeTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             _buildMenuTile(
               'Gestão de Ciclos',
               'Biomassa, despesca e histórico',
@@ -293,8 +302,13 @@ class _HomeTab extends StatelessWidget {
       ),
     );
   }
-  
-  Widget _buildStatusItem(String label, String value, IconData icon, Color color) {
+
+  Widget _buildStatusItem(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Column(
       children: [
         Container(
@@ -316,17 +330,20 @@ class _HomeTab extends StatelessWidget {
         ),
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
           textAlign: TextAlign.center,
         ),
       ],
     );
   }
-  
-  Widget _buildMenuTile(String titulo, String subtitulo, IconData icon, Color color, VoidCallback onTap) {
+
+  Widget _buildMenuTile(
+    String titulo,
+    String subtitulo,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -373,7 +390,11 @@ class _HomeTab extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey.shade400),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 14,
+                  color: Colors.grey.shade400,
+                ),
               ],
             ),
           ),
@@ -388,9 +409,7 @@ class _AnaliseTab extends StatelessWidget {
   const _AnaliseTab();
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Tab Análise')),
-    );
+    return const Scaffold(body: Center(child: Text('Tab Análise')));
   }
 }
 
@@ -398,9 +417,7 @@ class _RacaoTab extends StatelessWidget {
   const _RacaoTab();
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Tab Ração')),
-    );
+    return const Scaffold(body: Center(child: Text('Tab Ração')));
   }
 }
 
@@ -408,9 +425,7 @@ class _RelatoriosTab extends StatelessWidget {
   const _RelatoriosTab();
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Tab Relatórios')),
-    );
+    return const Scaffold(body: Center(child: Text('Tab Relatórios')));
   }
 }
 
@@ -418,8 +433,6 @@ class _ConfigTab extends StatelessWidget {
   const _ConfigTab();
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Tab Configurações')),
-    );
+    return const Scaffold(body: Center(child: Text('Tab Configurações')));
   }
 }

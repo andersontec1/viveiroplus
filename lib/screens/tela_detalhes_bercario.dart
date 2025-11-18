@@ -878,13 +878,6 @@ class _TelaDetalhesBercarioState extends State<TelaDetalhesBercario>
                           '%',
                           ideal: '80 - 120',
                         ),
-                      if (data['saturacao_oxigenio'] != null)
-                        paramDetalhe(
-                          'Saturação O₂',
-                          'saturacao_oxigenio',
-                          '%',
-                          ideal: '80 - 120',
-                        ),
                       if (data['calcio'] != null)
                         paramDetalhe(
                           'Cálcio',

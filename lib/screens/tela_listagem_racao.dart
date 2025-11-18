@@ -200,6 +200,18 @@ class _TelaListagemRacaoState extends State<TelaListagemRacao> {
     Map<String, dynamic> dados,
   ) async {
     final destino = dados['destinoNome'] ?? dados['viveiro'] ?? 'Destino';
+    // Sinaliza no log se o registro é legado (sem vínculo de insumo/lote)
+    final bool registroLegado = (() {
+      final List<dynamic> lotesUsados = (dados['lotesUsados'] is List)
+          ? (dados['lotesUsados'] as List)
+          : const [];
+      final String? insumoId = dados['insumoId'] as String?;
+      final String? loteSelecionado = (dados['loteSelecionado'] as String?)
+          ?.trim();
+      return ((insumoId == null || insumoId.trim().isEmpty) &&
+          lotesUsados.isEmpty &&
+          (loteSelecionado == null || loteSelecionado.isEmpty));
+    })();
     final confirmar = await ConfirmationHelper.showDoubleConfirmation(
       context: context,
       title: 'Excluir registro de ração?',
@@ -243,6 +255,7 @@ class _TelaListagemRacaoState extends State<TelaListagemRacao> {
           'dataRegistro': (dados['dataRegistro'] is Timestamp)
               ? (dados['dataRegistro'] as Timestamp).toDate().toIso8601String()
               : dados['dataRegistro']?.toString(),
+          'registro_legado': registroLegado,
         },
       );
 
@@ -996,9 +1009,6 @@ class _TelaListagemRacaoState extends State<TelaListagemRacao> {
                             Text(
                               '• Ao editar/excluir, o estoque (FEFO) é estornado automaticamente para ração e aditivos vinculados.',
                             ),
-                            Text(
-                              '• O selo LEGADO indica registros antigos sem vínculo de lote; edições passam a rastrear lotes normalmente.',
-                            ),
                           ],
                         ),
                       ),
@@ -1201,16 +1211,7 @@ class _TelaListagemRacaoState extends State<TelaListagemRacao> {
                             ? (data['suplementoUsados'] as List)
                             : const [];
 
-                        // Indicador visual para registros legados (sem vínculo de insumo/lote)
-                        final bool ehLegado =
-                            ((data['insumoId'] == null ||
-                                (data['insumoId'] is String &&
-                                    (data['insumoId'] as String)
-                                        .trim()
-                                        .isEmpty)) &&
-                            lotesUsados.isEmpty &&
-                            (loteSelecionado == null ||
-                                loteSelecionado.trim().isEmpty));
+                        // Indicador visual para registros legados removido da UI; compatibilidade mantida nos helpers
 
                         return Card(
                           margin: const EdgeInsets.symmetric(
@@ -1254,26 +1255,6 @@ class _TelaListagemRacaoState extends State<TelaListagemRacao> {
                                       backgroundColor: Colors.teal.shade50,
                                       visualDensity: VisualDensity.compact,
                                     ),
-                                    if (ehLegado) ...[
-                                      const SizedBox(width: 8),
-                                      Tooltip(
-                                        message:
-                                            'Registro legado: sem vínculo de insumo/lote. Recomenda-se backfill.',
-                                        child: Chip(
-                                          avatar: const Icon(
-                                            Icons.warning_amber_rounded,
-                                            size: 16,
-                                            color: Colors.amber,
-                                          ),
-                                          label: const Text(
-                                            'LEGADO',
-                                            style: TextStyle(fontSize: 11),
-                                          ),
-                                          backgroundColor: Colors.amber.shade50,
-                                          visualDensity: VisualDensity.compact,
-                                        ),
-                                      ),
-                                    ],
                                   ],
                                 ),
                                 const SizedBox(height: 2),

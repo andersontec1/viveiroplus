@@ -35,7 +35,6 @@ class _TelaRelatorioAnaliseAguaState extends State<TelaRelatorioAnaliseAgua> {
     'temperatura',
     'turbidez',
     'saturacao_percentual',
-    'saturacao_oxigenio',
     'salinidade',
     'calcio',
     'nitrito',
@@ -185,8 +184,6 @@ class _TelaRelatorioAnaliseAguaState extends State<TelaRelatorioAnaliseAgua> {
         return 'Turbidez';
       case 'saturacao_percentual':
         return 'Saturação %';
-      case 'saturacao_oxigenio':
-        return 'Sat. O2 %';
       case 'salinidade':
         return 'Salinidade';
       case 'calcio':
@@ -1208,9 +1205,6 @@ class _TelaRelatorioAnaliseAguaState extends State<TelaRelatorioAnaliseAgua> {
                                       break;
                                     case 'saturacao_percentual':
                                       titulo = 'Sat. %';
-                                      break;
-                                    case 'saturacao_oxigenio':
-                                      titulo = 'Sat. O2 %';
                                       break;
                                     case 'salinidade':
                                       titulo = 'Salinidade';

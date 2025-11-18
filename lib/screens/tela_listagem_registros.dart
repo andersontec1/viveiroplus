@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:viveiro_plus/helpers/parametros_analise_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/degrade_fundo.dart';
 import '../widgets/responsive_center.dart';
@@ -24,6 +25,8 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
   Map<String, String> _bercarios = {};
   String _funcaoUsuario = '';
   bool _carregado = false;
+  Map<String, Map<String, double>> _faixas =
+      ParametrosAnaliseHelper.getDefaultsAsDouble();
 
   @override
   void initState() {
@@ -34,7 +37,14 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
   Future<void> _carregarTudo() async {
     await _carregarDestinos();
     await _carregarFuncaoUsuario();
+    await _carregarParametros();
     setState(() => _carregado = true);
+  }
+
+  Future<void> _carregarParametros() async {
+    final map = await ParametrosAnaliseHelper.carregarTodos();
+    if (!mounted) return;
+    setState(() => _faixas = map);
   }
 
   Future<void> _carregarFuncaoUsuario() async {
@@ -171,61 +181,55 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
         'label': 'pH da Água',
         'campo': 'ph',
         'unidade': '',
-        'ideal': '7.0 – 9.0',
+        'ideal': _faixaIdealTexto('ph'),
       },
       {
         'label': 'Oxigênio Dissolvido',
         'campo': 'oxigenio',
         'unidade': 'mg/L',
-        'ideal': '4.0 – 14.0',
+        'ideal': _faixaIdealTexto('oxigenio'),
       },
       {
         'label': 'Temperatura (°C)',
         'campo': 'temperatura',
         'unidade': '°C',
-        'ideal': '26.0 – 32.0',
+        'ideal': _faixaIdealTexto('temperatura'),
       },
       {
         'label': 'Turbidez (NTU)',
         'campo': 'turbidez',
         'unidade': 'NTU',
-        'ideal': '40.0 – 60.0',
+        'ideal': _faixaIdealTexto('turbidez'),
       },
       {
         'label': 'Porcentagem de Saturação (%)',
         'campo': 'saturacao_percentual',
         'unidade': '%',
-        'ideal': '80 – 120',
-      },
-      {
-        'label': 'Saturação de O2 Dissolvido (%)',
-        'campo': 'saturacao_oxigenio',
-        'unidade': '%',
-        'ideal': '80 – 120',
+        'ideal': _faixaIdealTexto('saturacao_percentual'),
       },
       {
         'label': 'Salinidade (ppt)',
         'campo': 'salinidade',
         'unidade': 'ppt',
-        'ideal': '30.0 – 45.0',
+        'ideal': _faixaIdealTexto('salinidade'),
       },
       {
         'label': 'Cálcio (mg/L)',
         'campo': 'calcio',
         'unidade': 'mg/L',
-        'ideal': '100 – 300',
+        'ideal': _faixaIdealTexto('calcio'),
       },
       {
         'label': 'Nitrito (mg/L)',
         'campo': 'nitrito',
         'unidade': 'mg/L',
-        'ideal': '0.0 – 0.5',
+        'ideal': _faixaIdealTexto('nitrito'),
       },
       {
         'label': 'Amônia (mg/L)',
         'campo': 'amonia',
         'unidade': 'mg/L',
-        'ideal': '0.0 – 1.5',
+        'ideal': _faixaIdealTexto('amonia'),
       },
     ];
 
@@ -502,30 +506,18 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
     if (valor == null) return false;
     final val = double.tryParse(valor.toString());
     if (val == null) return false;
-    switch (campo) {
-      case 'ph':
-        return val < 7.0 || val > 9.0;
-      case 'oxigenio':
-        return val < 4.0 || val > 14.0;
-      case 'temperatura':
-        return val < 26.0 || val > 32.0;
-      case 'turbidez':
-        return val < 40.0 || val > 60.0;
-      case 'saturacao_percentual':
-        return val < 80.0 || val > 120.0;
-      case 'saturacao_oxigenio':
-        return val < 80.0 || val > 120.0;
-      case 'salinidade':
-        return val < 30.0 || val > 45.0;
-      case 'calcio':
-        return val < 100.0 || val > 300.0;
-      case 'nitrito':
-        return val < 0.0 || val > 0.5;
-      case 'amonia':
-        return val < 0.0 || val > 1.5;
-      default:
-        return false;
-    }
+    final faixa =
+        _faixas[campo] ?? ParametrosAnaliseHelper.getDefaultsAsDouble()[campo];
+    if (faixa == null) return false;
+    return val < (faixa['min'] ?? double.negativeInfinity) ||
+        val > (faixa['max'] ?? double.infinity);
+  }
+
+  String _faixaIdealTexto(String campo) {
+    final faixa =
+        _faixas[campo] ?? ParametrosAnaliseHelper.getDefaultsAsDouble()[campo];
+    if (faixa == null) return '—';
+    return '${faixa['min']} – ${faixa['max']}';
   }
 
   String _rotuloData(DateTime data) {
@@ -1453,12 +1445,6 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                             'Sat%: ${data['saturacao_percentual']}%',
                           );
                         }
-                        if (data['saturacao_oxigenio'] != null &&
-                            data['saturacao_oxigenio'].toString().isNotEmpty) {
-                          parametrosRegistrados.add(
-                            'SatO₂: ${data['saturacao_oxigenio']}%',
-                          );
-                        }
                         if (data['calcio'] != null &&
                             data['calcio'].toString().isNotEmpty) {
                           parametrosRegistrados.add(
@@ -1487,7 +1473,6 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                           'salinidade',
                           'turbidez',
                           'saturacao_percentual',
-                          'saturacao_oxigenio',
                           'calcio',
                           'nitrito',
                           'amonia',
@@ -1660,9 +1645,6 @@ class _TelaListagemRegistrosState extends State<TelaListagemRegistros> {
                                             break;
                                           case 'Sat%':
                                             campo = 'saturacao_percentual';
-                                            break;
-                                          case 'SatO₂':
-                                            campo = 'saturacao_oxigenio';
                                             break;
                                           case 'Ca':
                                             campo = 'calcio';

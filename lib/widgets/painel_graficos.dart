@@ -4,7 +4,10 @@ import 'package:intl/intl.dart';
 
 class PainelGraficos extends StatelessWidget {
   const PainelGraficos({
-    required this.historicoAnalises, required this.historicoRacao, required this.periodo, super.key,
+    required this.historicoAnalises,
+    required this.historicoRacao,
+    required this.periodo,
+    super.key,
   });
   final List<Map<String, dynamic>> historicoAnalises;
   final List<Map<String, dynamic>> historicoRacao;
@@ -58,14 +61,23 @@ class PainelGraficos extends StatelessWidget {
     required Color color,
   }) {
     if (dados.isEmpty) {
-      return Text('Sem dados para $titulo', style: const TextStyle(color: Colors.grey));
+      return Text(
+        'Sem dados para $titulo',
+        style: const TextStyle(color: Colors.grey),
+      );
     }
     final spots = <FlSpot>[];
     for (var i = 0; i < dados.length; i++) {
       spots.add(FlSpot(i.toDouble(), getY(dados[i])));
     }
-    final minY = spots.map((e) => e.y).reduce((a, b) => a < b ? a : b).floorToDouble();
-    final maxY = spots.map((e) => e.y).reduce((a, b) => a > b ? a : b).ceilToDouble();
+    final minY = spots
+        .map((e) => e.y)
+        .reduce((a, b) => a < b ? a : b)
+        .floorToDouble();
+    final maxY = spots
+        .map((e) => e.y)
+        .reduce((a, b) => a > b ? a : b)
+        .ceilToDouble();
     // Escala adaptativa para gráfico de ração
     double intervaloY = (maxY - minY).clamp(1, double.infinity);
     return Column(
@@ -80,10 +92,20 @@ class PainelGraficos extends StatelessWidget {
               maxY: maxY,
               minX: 0,
               maxX: spots.length > 1 ? (spots.length - 1).toDouble() : 1,
-              gridData: FlGridData(show: true, horizontalInterval: intervaloY / 4),
+              gridData: FlGridData(
+                show: true,
+                horizontalInterval: intervaloY / 4,
+              ),
               titlesData: FlTitlesData(
                 leftTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (v, meta) => Text(v.toStringAsFixed(1), style: const TextStyle(fontSize: 11))),
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 40,
+                    getTitlesWidget: (v, meta) => Text(
+                      v.toStringAsFixed(1),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ),
                 ),
                 bottomTitles: AxisTitles(
                   sideTitles: SideTitles(
@@ -91,20 +113,34 @@ class PainelGraficos extends StatelessWidget {
                     reservedSize: 36,
                     getTitlesWidget: (v, meta) {
                       final idx = v.round();
-                      if (idx < 0 || idx >= dados.length) return const SizedBox.shrink();
+                      if (idx < 0 || idx >= dados.length)
+                        return const SizedBox.shrink();
                       final dt = dados[idx]['timestamp'] as DateTime?;
                       return Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Text(dt != null ? DateFormat('dd/MM').format(dt) : '', style: const TextStyle(fontSize: 11)),
+                        child: Text(
+                          dt != null ? DateFormat('dd/MM').format(dt) : '',
+                          style: const TextStyle(fontSize: 11),
+                        ),
                       );
                     },
                     interval: 1,
                   ),
                 ),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
               ),
-              borderData: FlBorderData(show: true, border: const Border.symmetric(horizontal: BorderSide(), vertical: BorderSide())),
+              borderData: FlBorderData(
+                show: true,
+                border: const Border.symmetric(
+                  horizontal: BorderSide(),
+                  vertical: BorderSide(),
+                ),
+              ),
               lineBarsData: [
                 LineChartBarData(
                   spots: spots,
@@ -112,7 +148,10 @@ class PainelGraficos extends StatelessWidget {
                   color: color,
                   barWidth: 3,
                   dotData: const FlDotData(show: true),
-                  belowBarData: BarAreaData(show: true, color: color.withOpacity(0.15)),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: color.withOpacity(0.15),
+                  ),
                 ),
               ],
               lineTouchData: LineTouchData(
@@ -126,7 +165,10 @@ class PainelGraficos extends StatelessWidget {
                       final valor = spot.y;
                       return LineTooltipItem(
                         '${dt != null ? DateFormat('dd/MM/yyyy').format(dt) : ''}\n${valor.toStringAsFixed(2)}',
-                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       );
                     }).toList();
                   },

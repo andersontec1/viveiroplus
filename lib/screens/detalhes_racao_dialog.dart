@@ -62,14 +62,7 @@ class _DetalhesRacaoDialogState extends State<DetalhesRacaoDialog> {
     final List<dynamic> lotesUsados = (widget.dados['lotesUsados'] is List)
         ? (widget.dados['lotesUsados'] as List)
         : const [];
-    final String? loteSelecionado = (widget.dados['loteSelecionado'] as String?)
-        ?.trim();
-    final bool ehLegado =
-        ((widget.dados['insumoId'] == null ||
-            (widget.dados['insumoId'] is String &&
-                (widget.dados['insumoId'] as String).trim().isEmpty)) &&
-        lotesUsados.isEmpty &&
-        (loteSelecionado == null || loteSelecionado.isEmpty));
+    // Campo 'loteSelecionado' mantido no documento para compatibilidade, mas não exibido na UI
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -104,32 +97,7 @@ class _DetalhesRacaoDialogState extends State<DetalhesRacaoDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (ehLegado)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.amber.shade200),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.warning_amber_rounded,
-                              color: Colors.amber,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Registro legado sem vínculo de insumo/lote. Para reaplicar FEFO em edições, vincule um insumo ou execute o backfill.',
-                                style: TextStyle(color: Colors.amber.shade900),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    // Aviso de LEGADO removido da UI; compatibilidade mantida nas operações de estoque e backfill
                     // Data/hora
                     _infoContainer(
                       icon: Icons.calendar_today,

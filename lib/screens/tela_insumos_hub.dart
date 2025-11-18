@@ -12,7 +12,8 @@ class TelaInsumosHub extends StatefulWidget {
   State<TelaInsumosHub> createState() => _TelaInsumosHubState();
 }
 
-class _TelaInsumosHubState extends State<TelaInsumosHub> with SingleTickerProviderStateMixin {
+class _TelaInsumosHubState extends State<TelaInsumosHub>
+    with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
   @override

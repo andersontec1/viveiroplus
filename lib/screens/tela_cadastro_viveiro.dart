@@ -55,7 +55,9 @@ class _TelaCadastroViveiroState extends State<TelaCadastroViveiro> {
     final codigo = _codigoCtrl.text.trim();
     final area = _areaCtrl.text.trim();
     final volume = _volumeCtrl.text.trim();
-    final nomeBercario = _nomeBercarioCtrl.text.trim().isEmpty ? 'Bercario do $nome' : _nomeBercarioCtrl.text.trim();
+    final nomeBercario = _nomeBercarioCtrl.text.trim().isEmpty
+        ? 'Bercario do $nome'
+        : _nomeBercarioCtrl.text.trim();
     final codigoBercario = _codigoBercarioCtrl.text.trim();
     final areaBercario = _areaBercarioCtrl.text.trim();
     final volumeBercario = _volumeBercarioCtrl.text.trim();
@@ -177,13 +179,21 @@ class _TelaCadastroViveiroState extends State<TelaCadastroViveiro> {
                               SizedBox(height: 8),
                               Text(
                                 'Cadastro de Viveiro',
-                                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.teal),
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.teal,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                               SizedBox(height: 4),
                               Text(
                                 'Preencha os dados para cadastrar um novo viveiro e, se desejar, um berçário vinculado.',
-                                style: TextStyle(fontSize: 15, color: Colors.teal, fontWeight: FontWeight.w400),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.teal,
+                                  fontWeight: FontWeight.w400,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                               SizedBox(height: 20),
@@ -202,7 +212,9 @@ class _TelaCadastroViveiroState extends State<TelaCadastroViveiro> {
                               border: OutlineInputBorder(),
                             ),
                             validator: (value) =>
-                                value == null || value.trim().isEmpty ? 'Informe o nome' : null,
+                                value == null || value.trim().isEmpty
+                                ? 'Informe o nome'
+                                : null,
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -212,27 +224,39 @@ class _TelaCadastroViveiroState extends State<TelaCadastroViveiro> {
                               border: OutlineInputBorder(),
                             ),
                             validator: (value) =>
-                                value == null || value.trim().isEmpty ? 'Informe o código' : null,
+                                value == null || value.trim().isEmpty
+                                ? 'Informe o código'
+                                : null,
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _areaCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Área do Viveiro (m²)',
                               border: OutlineInputBorder(),
                             ),
-                            validator: (value) => value == null || value.trim().isEmpty ? 'Informe a área' : null,
+                            validator: (value) =>
+                                value == null || value.trim().isEmpty
+                                ? 'Informe a área'
+                                : null,
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _volumeCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Volume do Viveiro (m³)',
                               border: OutlineInputBorder(),
                             ),
-                            validator: (value) => value == null || value.trim().isEmpty ? 'Informe o volume' : null,
+                            validator: (value) =>
+                                value == null || value.trim().isEmpty
+                                ? 'Informe o volume'
+                                : null,
                           ),
                           const SizedBox(height: 12),
                           SwitchListTile(
@@ -244,7 +268,8 @@ class _TelaCadastroViveiroState extends State<TelaCadastroViveiro> {
                             TextFormField(
                               controller: _nomeBercarioCtrl,
                               decoration: const InputDecoration(
-                                labelText: 'Nome do Bercario (Ex: Bercario do 1)',
+                                labelText:
+                                    'Nome do Bercario (Ex: Bercario do 1)',
                                 border: OutlineInputBorder(),
                               ),
                             ),
@@ -255,27 +280,42 @@ class _TelaCadastroViveiroState extends State<TelaCadastroViveiro> {
                                 labelText: 'Código do Berçário (ex: 001-B)',
                                 border: OutlineInputBorder(),
                               ),
-                              validator: (value) => value == null || value.trim().isEmpty ? 'Informe o código do berçário' : null,
+                              validator: (value) =>
+                                  value == null || value.trim().isEmpty
+                                  ? 'Informe o código do berçário'
+                                  : null,
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _areaBercarioCtrl,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
                               decoration: const InputDecoration(
                                 labelText: 'Área do Berçário (m²)',
                                 border: OutlineInputBorder(),
                               ),
-                              validator: (value) => value == null || value.trim().isEmpty ? 'Informe a área do berçário' : null,
+                              validator: (value) =>
+                                  value == null || value.trim().isEmpty
+                                  ? 'Informe a área do berçário'
+                                  : null,
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _volumeBercarioCtrl,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
                               decoration: const InputDecoration(
                                 labelText: 'Volume do Berçário (m³)',
                                 border: OutlineInputBorder(),
                               ),
-                              validator: (value) => value == null || value.trim().isEmpty ? 'Informe o volume do berçário' : null,
+                              validator: (value) =>
+                                  value == null || value.trim().isEmpty
+                                  ? 'Informe o volume do berçário'
+                                  : null,
                             ),
                             const SizedBox(height: 12),
                           ],
@@ -288,13 +328,20 @@ class _TelaCadastroViveiroState extends State<TelaCadastroViveiro> {
                                     width: 24,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
                                     ),
                                   )
                                 : const Text('Salvar'),
                             onPressed: _saving ? null : _onSubmit,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color.fromARGB(255, 184, 255, 248),
+                              backgroundColor: const Color.fromARGB(
+                                255,
+                                184,
+                                255,
+                                248,
+                              ),
                             ),
                           ),
                         ],

@@ -3,7 +3,10 @@ import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import 'package:csv/csv.dart';
 
-Future<void> exportarCsv(List<List<dynamic>> data, {String nomeArquivo = 'dados.csv'}) async {
+Future<void> exportarCsv(
+  List<List<dynamic>> data, {
+  String nomeArquivo = 'dados.csv',
+}) async {
   final csv = const ListToCsvConverter().convert(data);
   final dir = await getTemporaryDirectory();
   final file = File('${dir.path}/$nomeArquivo');

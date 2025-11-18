@@ -29,12 +29,19 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
                     SizedBox(height: 6),
                     Text(
                       'Análise da Água',
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     SizedBox(height: 4),
                     Text(
                       'Registre os parâmetros de qualidade da água dos viveiros e berçários de forma rápida e segura',
-                      style: TextStyle(fontSize: 15, color: Colors.teal, fontWeight: FontWeight.w400),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.teal,
+                        fontWeight: FontWeight.w400,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 20),
@@ -61,28 +68,41 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
     setState(() => _salvando = true);
     try {
       // Uso de ID automático novamente para permitir múltiplas leituras no mesmo minuto
-      await FirebaseFirestore.instance.collection('registros_diarios').add(dados);
-      
+      await FirebaseFirestore.instance
+          .collection('registros_diarios')
+          .add(dados);
+
       if (!mounted) return;
       await showDialog(
         context: context,
         builder: (_) => AlertDialog(
           backgroundColor: Colors.green.shade50,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
           title: const Row(
             children: [
               Icon(Icons.check_circle, color: Colors.green, size: 32),
               SizedBox(width: 8),
-              Text('Registro Salvo!', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'Registro Salvo!',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           content: const Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('A análise foi registrada com sucesso.', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'A análise foi registrada com sucesso.',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               SizedBox(height: 10),
-              Text('Você pode consultar ou editar este registro na tela de listagem.', style: TextStyle(color: Colors.teal)),
+              Text(
+                'Você pode consultar ou editar este registro na tela de listagem.',
+                style: TextStyle(color: Colors.teal),
+              ),
             ],
           ),
           actions: [
@@ -90,7 +110,10 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
               icon: const Icon(Icons.done, color: Colors.white),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               onPressed: () => Navigator.of(context).pop(),
-              label: const Text('Fechar', style: TextStyle(color: Colors.white)),
+              label: const Text(
+                'Fechar',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -99,9 +122,9 @@ class _TelaAnaliseAguaState extends State<TelaAnaliseAgua> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar registro: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao salvar registro: $e')));
     } finally {
       if (mounted) setState(() => _salvando = false);
     }

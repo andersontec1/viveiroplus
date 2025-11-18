@@ -22,6 +22,8 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   final _formKey = GlobalKey<FormState>();
   final _qtdCtrl = TextEditingController();
   final _pesoCtrl = TextEditingController();
+  final _plDiaCtrl = TextEditingController();
+  final _plGramaCtrl = TextEditingController();
   String? _codigoSelecionado;
   DateTime _dataInicio = DateTime.now();
   Map<String, String> _destinos = {};
@@ -156,6 +158,12 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
         'quantidadeEstocada': int.parse(_qtdCtrl.text),
         'pesoInicial':
             double.tryParse(_pesoCtrl.text.replaceAll(',', '.')) ?? 0.0,
+        'plDia': _plDiaCtrl.text.isNotEmpty
+            ? double.tryParse(_plDiaCtrl.text.replaceAll(',', '.'))
+            : null,
+        'plGrama': _plGramaCtrl.text.isNotEmpty
+            ? double.tryParse(_plGramaCtrl.text.replaceAll(',', '.'))
+            : null,
       };
 
       if (_idEditando != null) {
@@ -512,6 +520,8 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
   void dispose() {
     _qtdCtrl.dispose();
     _pesoCtrl.dispose();
+    _plDiaCtrl.dispose();
+    _plGramaCtrl.dispose();
     super.dispose();
   }
 
@@ -527,6 +537,8 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
       _codigoSelecionado = tipo == 'viveiro' ? 'V-$codigo' : 'B-$codigo';
       _qtdCtrl.text = (data['quantidadeEstocada'] ?? '').toString();
       _pesoCtrl.text = (data['pesoInicial'] ?? '').toString();
+      _plDiaCtrl.text = (data['plDia'] ?? '').toString();
+      _plGramaCtrl.text = (data['plGrama'] ?? '').toString();
       final dtInicio = data['dataInicio'] as Timestamp?;
       _dataInicio = dtInicio?.toDate() ?? DateTime.now();
       _previsaoEncerramento = (data['previsaoEncerramento'] is Timestamp)
@@ -975,6 +987,16 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                 '${dataMap['quantidadeEstocada'] ?? 0} pós-larvas',
               ),
               _buildInfoRow('⏱️ Duração', '$duracaoDias dias'),
+              if (dataMap['plDia'] != null)
+                _buildInfoRow(
+                  '📊 PL / Dia',
+                  '${dataMap['plDia'].toString().replaceAll('.', ',')}',
+                ),
+              if (dataMap['plGrama'] != null && dataMap['tipo'] == 'bercario')
+                _buildInfoRow(
+                  '📏 PL / g',
+                  '${dataMap['plGrama'].toString().replaceAll('.', ',')}',
+                ),
               if (ganhoPeso != null)
                 _buildInfoRow(
                   '📈 Ganho Médio',
@@ -1593,6 +1615,101 @@ class _TelaCiclosViveiroState extends State<TelaCiclosViveiro> {
                                   ),
                                 ),
                               ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _plDiaCtrl,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                style: const TextStyle(
+                                  color: Color(0xFF045D3A),
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'PL / Dia',
+                                  hintText: 'Opcional',
+                                  labelStyle: TextStyle(
+                                    color: const Color(
+                                      0xFF045D3A,
+                                    ).withOpacity(0.8),
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.today,
+                                    color: Color(0xFF049F56),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.grey[50],
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey[300]!,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey[300]!,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF049F56),
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              if (_codigoSelecionado != null &&
+                                  _codigoSelecionado!.startsWith('B-'))
+                                TextFormField(
+                                  controller: _plGramaCtrl,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  style: const TextStyle(
+                                    color: Color(0xFF045D3A),
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: 'PL / g (Berçário)',
+                                    hintText: 'Opcional',
+                                    labelStyle: TextStyle(
+                                      color: const Color(
+                                        0xFF045D3A,
+                                      ).withOpacity(0.8),
+                                    ),
+                                    prefixIcon: const Icon(
+                                      Icons.straighten,
+                                      color: Color(0xFF049F56),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.grey[50],
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF049F56),
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (_codigoSelecionado != null &&
+                                  _codigoSelecionado!.startsWith('B-'))
+                                const SizedBox(height: 16),
                               const SizedBox(height: 20),
                               _buildDateSelector(),
                               const SizedBox(height: 24),

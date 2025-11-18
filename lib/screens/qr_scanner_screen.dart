@@ -11,8 +11,10 @@ class QRScannerScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text('Escanear QR Code',
-            style: Theme.of(context).textTheme.titleLarge),
+        title: Text(
+          'Escanear QR Code',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
       ),
       body: DegradeFundo(
         child: MobileScanner(

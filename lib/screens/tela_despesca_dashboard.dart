@@ -53,12 +53,18 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
       );
     }
 
-    final despescasAtivas = _despescas
-        .where((d) => !(d['despescaFinalizada'] ?? false))
-        .toList();
-    final despescasFinalizadas = _despescas
-        .where((d) => d['despescaFinalizada'] ?? false)
-        .toList();
+    bool _isFinalizada(Map<String, dynamic> d) {
+      final status = d['statusDespesca']?.toString();
+      final flagAntigo = d['despescaFinalizada'] == true;
+      // Considera finalizada quando: flag antigo = true, ou status 'concluida'/'finalizada'/'auditada'
+      return flagAntigo ||
+          status == 'concluida' ||
+          status == 'finalizada' ||
+          status == 'auditada';
+    }
+
+    final despescasFinalizadas = _despescas.where(_isFinalizada).toList();
+    final despescasAtivas = _despescas.where((d) => !_isFinalizada(d)).toList();
     final despescasAuditadas = _despescas
         .where((d) => d['auditado'] ?? false)
         .length;
@@ -67,7 +73,7 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
       title: '🦐 Dashboard de Despescas',
       body: DegradeFundo(
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.all(20),
           child: ListView(
             children: [
               // Header principal
@@ -322,9 +328,19 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
     final dataCriacao = despesca['dataCriacao'] as Timestamp?;
     final dataDespesca = dataCriacao?.toDate() ?? DateTime.now();
     final auditado = despesca['auditado'] ?? false;
-    final pesoTotal = despesca['pesoTotal'] ?? 0.0;
-    final basquetasTotal = despesca['basquetasTotal'] ?? 0;
-    final responsavelNome = despesca['criadoPor'] ?? '—';
+    final pesoTotal = (despesca['pesoTotal'] as num?)?.toDouble() ?? 0.0;
+    final basquetasTotal = (despesca['basquetasTotal'] as num?)?.toInt() ?? 0;
+    final dias = List<Map<String, dynamic>>.from(despesca['dias'] ?? const []);
+    final ultimoDia = dias.isNotEmpty ? dias.last : null;
+    final biometriaDia = (ultimoDia?['biometriaPesoMedio'] as num?)?.toDouble();
+    final lotesDia = List<Map<String, dynamic>>.from(
+      ultimoDia?['lotes'] ?? const [],
+    );
+    String responsavelNome = despesca['criadoPor']?.toString() ?? '—';
+    final responsavelDia = ultimoDia?['responsavel'];
+    if (responsavelDia is String && responsavelDia.trim().isNotEmpty) {
+      responsavelNome = responsavelDia.trim();
+    }
     final codigo = despesca['codigo'] ?? '—';
     final nome = despesca['nome'] ?? '—';
     final statusDespesca = despesca['statusDespesca'] ?? 'planejada';
@@ -515,6 +531,25 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
                       Colors.blue,
                     ),
                   ),
+                  if (lotesDia.isNotEmpty)
+                    Expanded(
+                      child: _buildInfoItem(
+                        Icons.view_module,
+                        'Registros',
+                        '${lotesDia.length} registro${lotesDia.length > 1 ? 's' : ''}',
+                        Colors.teal,
+                      ),
+                    ),
+                  Expanded(
+                    child: _buildInfoItem(
+                      Icons.scale,
+                      'Biometria',
+                      biometriaDia != null
+                          ? '${biometriaDia.toStringAsFixed(2)} g'
+                          : '--',
+                      Colors.deepPurple,
+                    ),
+                  ),
                 ],
               ),
 
@@ -647,19 +682,6 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
     }
   }
 
-  String _getEstadoBasquetaText(String estado) {
-    switch (estado) {
-      case 'boa':
-        return 'Boa';
-      case 'danificada':
-        return 'Danificada';
-      case 'necessita_reparo':
-        return 'Necessita Reparo';
-      default:
-        return 'N/A';
-    }
-  }
-
   Widget _buildInfoItem(
     IconData icon,
     String label,
@@ -772,6 +794,22 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
   }
 
   void _mostrarDetalhesCompletos(Map<String, dynamic> despesca) {
+    // Extrair informações da estrutura multi-dias
+    final dias = List<Map<String, dynamic>>.from(despesca['dias'] ?? const []);
+    final pesoTotal = (despesca['pesoTotal'] as num?)?.toDouble() ?? 0.0;
+    final basquetasTotal = (despesca['basquetasTotal'] as num?)?.toInt() ?? 0;
+    final statusDespesca = despesca['statusDespesca'] ?? 'planejada';
+    final codigo = despesca['codigo'] ?? '—';
+    final nome = despesca['nome'] ?? '—';
+    final criadoPor = despesca['criadoPor'] ?? '—';
+    final dataCriacao = despesca['dataCriacao'] as Timestamp?;
+
+    // Pegar dados do último dia (mais recente) se houver
+    final ultimoDia = dias.isNotEmpty ? dias.last : null;
+    final qualidadeGeral = ultimoDia?['qualidadeGeral'] ?? 'boa';
+    final condicoesClimaticas = ultimoDia?['condicoesClimaticas'] ?? 'sol';
+    final responsavelNome = ultimoDia?['responsavel']?.toString() ?? criadoPor;
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -820,43 +858,19 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildDetalheSecao('Informações Básicas', [
-                          _buildDetalheLinha(
-                            'Viveiro',
-                            '${despesca['codigo']} - ${despesca['nome']}',
-                          ),
-                          if (despesca['dataDespesca'] != null)
+                          _buildDetalheLinha('Viveiro', '$codigo - $nome'),
+                          if (dataCriacao != null)
                             _buildDetalheLinha(
-                              'Data da Despesca',
-                              DateFormat('dd/MM/yyyy').format(
-                                (despesca['dataDespesca'] as Timestamp)
-                                    .toDate(),
-                              ),
+                              'Data de Criação',
+                              DateFormat(
+                                'dd/MM/yyyy',
+                              ).format(dataCriacao.toDate()),
                             ),
                           _buildDetalheLinha(
                             'Status',
-                            _getStatusText(
-                              despesca['statusDespesca'] ?? 'planejada',
-                            ),
+                            _getStatusText(statusDespesca),
                           ),
-                          _buildDetalheLinha(
-                            'Responsável',
-                            despesca['responsavelNome'] ?? '—',
-                          ),
-                          if (despesca['dataHoraInicio'] != null)
-                            _buildDetalheLinha(
-                              'Hora Início',
-                              DateFormat('HH:mm').format(
-                                (despesca['dataHoraInicio'] as Timestamp)
-                                    .toDate(),
-                              ),
-                            ),
-                          if (despesca['dataHoraFim'] != null)
-                            _buildDetalheLinha(
-                              'Hora Fim',
-                              DateFormat('HH:mm').format(
-                                (despesca['dataHoraFim'] as Timestamp).toDate(),
-                              ),
-                            ),
+                          _buildDetalheLinha('Responsável', responsavelNome),
                         ]),
 
                         const SizedBox(height: 20),
@@ -864,99 +878,44 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
                         _buildDetalheSecao('Produção e Qualidade', [
                           _buildDetalheLinha(
                             'Peso Registrado',
-                            '${despesca['pesoOperador'] ?? 0} kg',
+                            '${pesoTotal.toStringAsFixed(2)} kg',
                           ),
-                          if (despesca['pesoAuditado'] != null)
-                            _buildDetalheLinha(
-                              'Peso Auditado',
-                              '${despesca['pesoAuditado']} kg',
-                            ),
+                          _buildDetalheLinha(
+                            'Total de Basquetas',
+                            basquetasTotal.toString(),
+                          ),
                           _buildDetalheLinha(
                             'Qualidade Geral',
-                            _getQualidadeText(
-                              despesca['qualidadeGeral'] ?? 'boa',
-                            ),
+                            _getQualidadeText(qualidadeGeral),
                           ),
                           _buildDetalheLinha(
                             'Condições Climáticas',
-                            _getClimaText(
-                              despesca['condicoesClimaticas'] ?? 'sol',
-                            ),
+                            _getClimaText(condicoesClimaticas),
                           ),
                           _buildDetalheLinha(
                             'Despesca Finalizada',
-                            despesca['despescaFinalizada'] == true
+                            statusDespesca == 'finalizada' ||
+                                    statusDespesca == 'concluida'
                                 ? 'Sim'
                                 : 'Não',
                           ),
                         ]),
 
-                        if (despesca['basquetas'] != null) ...[
+                        if (dias.isNotEmpty) ...[
                           const SizedBox(height: 20),
-                          _buildDetalheSecaoBasquetas(despesca['basquetas']),
-                        ],
-
-                        if (_temInformacoesComplementares(despesca)) ...[
-                          const SizedBox(height: 20),
-                          _buildDetalheSecao('Informações Complementares', [
-                            if (despesca['equipamentosUsados'] != null &&
-                                despesca['equipamentosUsados']
-                                    .toString()
-                                    .isNotEmpty)
-                              _buildDetalheLinha(
-                                'Equipamentos Utilizados',
-                                despesca['equipamentosUsados'],
-                              ),
-                            if (despesca['problemasEnfrentados'] != null &&
-                                despesca['problemasEnfrentados']
-                                    .toString()
-                                    .isNotEmpty)
-                              _buildDetalheLinha(
-                                'Problemas Enfrentados',
-                                despesca['problemasEnfrentados'],
-                              ),
-                            if (despesca['qualidadeCamaroes'] != null &&
-                                despesca['qualidadeCamaroes']
-                                    .toString()
-                                    .isNotEmpty)
-                              _buildDetalheLinha(
-                                'Qualidade dos Camarões',
-                                despesca['qualidadeCamaroes'],
-                              ),
-                            if (despesca['observacoes'] != null &&
-                                despesca['observacoes'].toString().isNotEmpty)
-                              _buildDetalheLinha(
-                                'Observações Gerais',
-                                despesca['observacoes'],
-                              ),
-                          ]),
+                          _buildDetalheSecaoDias(dias),
                         ],
 
                         const SizedBox(height: 20),
 
                         _buildDetalheSecao('Auditoria', [
-                          _buildDetalheLinha(
-                            'Registrado por',
-                            despesca['registradoPor'] ?? '—',
-                          ),
-                          if (despesca['criadoEm'] != null)
+                          _buildDetalheLinha('Registrado por', criadoPor),
+                          if (dataCriacao != null)
                             _buildDetalheLinha(
                               'Data de Registro',
-                              DateFormat('dd/MM/yyyy HH:mm').format(
-                                (despesca['criadoEm'] as Timestamp).toDate(),
-                              ),
-                            ),
-                          if (despesca['editadoPor'] != null)
-                            _buildDetalheLinha(
-                              'Editado por',
-                              despesca['editadoPor'],
-                            ),
-                          if (despesca['editadoEm'] != null)
-                            _buildDetalheLinha(
-                              'Data de Edição',
-                              DateFormat('dd/MM/yyyy HH:mm').format(
-                                (despesca['editadoEm'] as Timestamp).toDate(),
-                              ),
+                              DateFormat(
+                                'dd/MM/yyyy HH:mm',
+                              ).format(dataCriacao.toDate()),
                             ),
                         ]),
                       ],
@@ -1012,17 +971,6 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
     }
   }
 
-  bool _temInformacoesComplementares(Map<String, dynamic> despesca) {
-    return (despesca['equipamentosUsados'] != null &&
-            despesca['equipamentosUsados'].toString().isNotEmpty) ||
-        (despesca['problemasEnfrentados'] != null &&
-            despesca['problemasEnfrentados'].toString().isNotEmpty) ||
-        (despesca['qualidadeCamaroes'] != null &&
-            despesca['qualidadeCamaroes'].toString().isNotEmpty) ||
-        (despesca['observacoes'] != null &&
-            despesca['observacoes'].toString().isNotEmpty);
-  }
-
   Widget _buildDetalheSecao(String titulo, List<Widget> items) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1053,12 +1001,12 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
     );
   }
 
-  Widget _buildDetalheSecaoBasquetas(Map<String, dynamic> basquetas) {
+  Widget _buildDetalheSecaoDias(List<Map<String, dynamic>> dias) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Controle de Basquetas',
+          'Dias de Despesca',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -1066,52 +1014,78 @@ class _TelaDespescaDashboardState extends State<TelaDespescaDashboard> {
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.shade200),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetalheLinha(
-                'Número de Basquetas',
-                '${basquetas['numeroBasquetas'] ?? 0} unidades',
-              ),
-              if (basquetas['capacidadePorBasqueta'] != null &&
-                  basquetas['capacidadePorBasqueta'] > 0)
-                _buildDetalheLinha(
-                  'Capacidade por Basqueta',
-                  '${basquetas['capacidadePorBasqueta']} kg',
+        ...dias.asMap().entries.map((entry) {
+          final index = entry.key;
+          final dia = entry.value;
+          final data = dia['data']?.toString() ?? '—';
+          final pesoTotal = (dia['pesoTotal'] as num?)?.toDouble() ?? 0.0;
+          final totalBasquetas = (dia['totalBasquetas'] as num?)?.toInt() ?? 0;
+          final basquetas = List<Map<String, dynamic>>.from(
+            dia['basquetas'] ?? const [],
+          );
+          final observacoesDia = (dia['observacoes'] ?? '').toString().trim();
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Dia ${index + 1} - $data',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
-              if (basquetas['pesoMedioPorBasqueta'] != null &&
-                  basquetas['pesoMedioPorBasqueta'] > 0)
+                const SizedBox(height: 8),
                 _buildDetalheLinha(
-                  'Peso Médio por Basqueta',
-                  '${basquetas['pesoMedioPorBasqueta']} kg',
+                  'Peso Total',
+                  '${pesoTotal.toStringAsFixed(2)} kg',
                 ),
-              _buildDetalheLinha(
-                'Estado das Basquetas',
-                _getEstadoBasquetaText(basquetas['estadoBasquetas'] ?? 'boa'),
-              ),
-              if (basquetas['totalEstimadoBasquetas'] != null &&
-                  basquetas['totalEstimadoBasquetas'] > 0)
-                _buildDetalheLinha(
-                  'Total Estimado',
-                  '${basquetas['totalEstimadoBasquetas']} kg',
-                ),
-              if (basquetas['observacoesBasquetas'] != null &&
-                  basquetas['observacoesBasquetas'].toString().isNotEmpty)
-                _buildDetalheLinha(
-                  'Observações',
-                  basquetas['observacoesBasquetas'],
-                ),
-            ],
-          ),
-        ),
+                _buildDetalheLinha('Basquetas', '$totalBasquetas unidades'),
+                if (dia['responsavel'] != null)
+                  _buildDetalheLinha(
+                    'Responsável',
+                    dia['responsavel'].toString(),
+                  ),
+                if (observacoesDia.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  _buildDetalheLinha('Observações', observacoesDia),
+                ],
+                if (basquetas.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Basquetas:',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: basquetas.map((b) {
+                      final numero = b['numero'] ?? 0;
+                      final peso = (b['peso'] as num?)?.toDouble() ?? 0.0;
+                      return Chip(
+                        label: Text(
+                          '#$numero: ${peso.toStringAsFixed(2)}kg',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }),
       ],
     );
   }

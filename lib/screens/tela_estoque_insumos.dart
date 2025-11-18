@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/degrade_fundo.dart';
-import 'tela_entrada_insumo.dart';
 import '../helpers/estoque_helper.dart';
 import '../helpers/security_helper.dart';
 import '../helpers/audit_helper.dart';
@@ -625,25 +624,6 @@ class _TelaEstoqueInsumosState extends State<TelaEstoqueInsumos> {
                                               }
                                             },
                                           ),
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.move_to_inbox_rounded,
-                                              color: Colors.teal,
-                                            ),
-                                            tooltip: 'Entrada por Lote',
-                                            onPressed: () async {
-                                              await Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      TelaEntradaInsumo(
-                                                        insumoIdPreSelecionado:
-                                                            insumo.id,
-                                                      ),
-                                                ),
-                                              );
-                                            },
-                                          ),
                                         ],
                                       ),
                                     ],
@@ -665,7 +645,7 @@ class _TelaEstoqueInsumosState extends State<TelaEstoqueInsumos> {
                   Icon(Icons.info_outline, size: 16, color: Colors.grey),
                   SizedBox(width: 4),
                   Text(
-                    'Toque para ver histórico, pressione para movimentar',
+                    'Toque para ver histórico | Ração: use "Entrega de Ração" no menu',
                     style: TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                 ],
@@ -673,16 +653,6 @@ class _TelaEstoqueInsumosState extends State<TelaEstoqueInsumos> {
             ],
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const TelaEntradaInsumo()),
-          );
-        },
-        icon: const Icon(Icons.move_to_inbox_rounded),
-        label: const Text('Entrada por Lote'),
       ),
     );
   }

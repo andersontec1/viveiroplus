@@ -32,8 +32,12 @@ class _TelaEditarViveiroState extends State<TelaEditarViveiro> {
     super.initState();
     _nomeCtrl = TextEditingController(text: widget.dados['nome']);
     _codigoCtrl = TextEditingController(text: widget.dados['codigo'] ?? '');
-    _areaCtrl = TextEditingController(text: widget.dados['area']?.toString() ?? '');
-    _volumeCtrl = TextEditingController(text: widget.dados['volume']?.toString() ?? '');
+    _areaCtrl = TextEditingController(
+      text: widget.dados['area']?.toString() ?? '',
+    );
+    _volumeCtrl = TextEditingController(
+      text: widget.dados['volume']?.toString() ?? '',
+    );
     _nomeBercarioCtrl = TextEditingController();
     _temBercario = widget.dados['temBercario'] ?? false;
     _codigo = widget.dados['codigo'];
@@ -87,8 +91,9 @@ class _TelaEditarViveiroState extends State<TelaEditarViveiro> {
       return;
     }
 
-    final viveiroRef =
-        FirebaseFirestore.instance.collection('viveiros').doc(widget.docId);
+    final viveiroRef = FirebaseFirestore.instance
+        .collection('viveiros')
+        .doc(widget.docId);
     await viveiroRef.update({
       'nome': novoNome,
       'nomeLower': novoNomeLower,
@@ -102,7 +107,9 @@ class _TelaEditarViveiroState extends State<TelaEditarViveiro> {
     final bercariosRef = FirebaseFirestore.instance.collection('bercarios');
 
     if (_temBercario) {
-      final snap = await bercariosRef.where('codigo', isEqualTo: bercarioCodigo).get();
+      final snap = await bercariosRef
+          .where('codigo', isEqualTo: bercarioCodigo)
+          .get();
       if (snap.docs.isNotEmpty) {
         await bercariosRef.doc(snap.docs.first.id).update({
           'nome': nomeBercario.isEmpty ? 'Berçário do $novoNome' : nomeBercario,
@@ -116,13 +123,17 @@ class _TelaEditarViveiroState extends State<TelaEditarViveiro> {
         });
       }
     } else {
-      final snap = await bercariosRef.where('codigo', isEqualTo: bercarioCodigo).get();
+      final snap = await bercariosRef
+          .where('codigo', isEqualTo: bercarioCodigo)
+          .get();
       if (snap.docs.isNotEmpty) {
         final confirmar = await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
             title: const Text('Excluir berçário?'),
-            content: const Text('Deseja excluir o berçário vinculado a este viveiro?'),
+            content: const Text(
+              'Deseja excluir o berçário vinculado a este viveiro?',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -182,7 +193,9 @@ class _TelaEditarViveiroState extends State<TelaEditarViveiro> {
                       labelStyle: Theme.of(context).textTheme.bodyLarge,
                       border: const OutlineInputBorder(),
                     ),
-                    validator: (value) => value == null || value.trim().isEmpty ? 'Informe o nome' : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Informe o nome'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -193,31 +206,41 @@ class _TelaEditarViveiroState extends State<TelaEditarViveiro> {
                       labelStyle: Theme.of(context).textTheme.bodyLarge,
                       border: const OutlineInputBorder(),
                     ),
-                    validator: (value) => value == null || value.trim().isEmpty ? 'Informe o código' : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Informe o código'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _areaCtrl,
                     style: Theme.of(context).textTheme.bodyLarge,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Área do Viveiro (m²)',
                       labelStyle: Theme.of(context).textTheme.bodyLarge,
                       border: const OutlineInputBorder(),
                     ),
-                    validator: (value) => value == null || value.trim().isEmpty ? 'Informe a área' : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Informe a área'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _volumeCtrl,
                     style: Theme.of(context).textTheme.bodyLarge,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Volume do Viveiro (m³)',
                       labelStyle: Theme.of(context).textTheme.bodyLarge,
                       border: const OutlineInputBorder(),
                     ),
-                    validator: (value) => value == null || value.trim().isEmpty ? 'Informe o volume' : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Informe o volume'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   SwitchListTile(
@@ -245,7 +268,9 @@ class _TelaEditarViveiroState extends State<TelaEditarViveiro> {
                             width: 24,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : const Text('Salvar alterações'),

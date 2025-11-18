@@ -19,6 +19,9 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
   String? uidAtual;
   String buscaNome = '';
   String filtroFuncao = 'todos';
+  final _buscaController = TextEditingController();
+  final _filtroNotifier = ValueNotifier<String>('');
+  final _funcaoNotifier = ValueNotifier<String>('todos');
 
   final funcoesDisponiveis = [
     'todos',
@@ -43,6 +46,14 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
   void initState() {
     super.initState();
     uidAtual = FirebaseAuth.instance.currentUser?.uid;
+  }
+
+  @override
+  void dispose() {
+    _buscaController.dispose();
+    _filtroNotifier.dispose();
+    _funcaoNotifier.dispose();
+    super.dispose();
   }
 
   Future<void> _editarUsuario(
@@ -205,26 +216,48 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
                     color: Colors.teal,
                   ),
                 ),
-                ...todasTelas.map(
-                  (p) => CheckboxListTile(
-                    value: permissoesSelecionadas.contains(p),
-                    title: Text(
-                      PermissionsHelper.labels[p] ?? p,
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    dense: true,
-                    onChanged: (val) {
-                      setState(() {
-                        if (val == true) {
-                          permissoesSelecionadas.add(p);
-                        } else {
-                          permissoesSelecionadas.remove(p);
-                        }
-                      });
-                    },
-                  ),
-                ),
+                const SizedBox(height: 8),
+                ...PermissionsHelper.categorizedKeys(
+                  only: todasTelas,
+                ).entries.map((entry) {
+                  final categoria = entry.key;
+                  final chaves = entry.value;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 4),
+                        child: Text(
+                          categoria,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.teal,
+                          ),
+                        ),
+                      ),
+                      ...chaves.map(
+                        (p) => CheckboxListTile(
+                          value: permissoesSelecionadas.contains(p),
+                          title: Text(
+                            PermissionsHelper.labels[p] ?? p,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          dense: true,
+                          onChanged: (val) {
+                            setState(() {
+                              if (val == true) {
+                                permissoesSelecionadas.add(p);
+                              } else {
+                                permissoesSelecionadas.remove(p);
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                }),
               ],
             ),
           ),
@@ -894,6 +927,8 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
   ) async {
     final nome = data['nome'] ?? 'Sem nome';
     final email = data['email'] ?? 'Sem email';
+    final nomeUsuario = (data['nomeUsuario'] ?? data['nomeusuario'] ?? '')
+        .toString();
     final funcao = data['funcao'] ?? 'indefinida';
     final criadoEm = data['criadoEm'] != null
         ? (data['criadoEm'] as Timestamp).toDate()
@@ -974,6 +1009,29 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
                           ),
                         ],
                       ),
+                      if (nomeUsuario.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.badge,
+                              size: 18,
+                              color: Colors.blue,
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Usuário: ',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Expanded(
+                              child: Text(
+                                nomeUsuario,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       if (email.isNotEmpty && email != 'Sem email')
                         Row(
@@ -1029,6 +1087,29 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
                             ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.access_time,
+                            size: 18,
+                            color: Colors.blue,
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Último acesso: ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Expanded(
+                            child: Text(
+                              ultimoLogin == null
+                                  ? 'Nunca acessou'
+                                  : '${ultimoLogin.day.toString().padLeft(2, '0')}/${ultimoLogin.month.toString().padLeft(2, '0')}/${ultimoLogin.year} às ${ultimoLogin.hour.toString().padLeft(2, '0')}:${ultimoLogin.minute.toString().padLeft(2, '0')}',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -1080,7 +1161,7 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
                 ),
 
                 // 📅 Informações de auditoria (se disponíveis)
-                if (criadoEm != null || ultimoLogin != null) ...[
+                if (criadoEm != null) ...[
                   const SizedBox(height: 12),
                   const Text(
                     'Informações de auditoria:',
@@ -1100,55 +1181,30 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
                     ),
                     child: Column(
                       children: [
-                        if (criadoEm != null)
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.calendar_today,
-                                size: 16,
-                                color: Colors.orange,
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today,
+                              size: 16,
+                              color: Colors.orange,
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Criado em: ',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Expanded(
+                              child: Text(
+                                '${criadoEm.day.toString().padLeft(2, '0')}/${criadoEm.month.toString().padLeft(2, '0')}/${criadoEm.year} às ${criadoEm.hour.toString().padLeft(2, '0')}:${criadoEm.minute.toString().padLeft(2, '0')}',
+                                style: const TextStyle(fontSize: 13),
                               ),
-                              const SizedBox(width: 6),
-                              const Text(
-                                'Criado em: ',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  '${criadoEm.day.toString().padLeft(2, '0')}/${criadoEm.month.toString().padLeft(2, '0')}/${criadoEm.year} às ${criadoEm.hour.toString().padLeft(2, '0')}:${criadoEm.minute.toString().padLeft(2, '0')}',
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ),
-                            ],
-                          ),
-                        if (ultimoLogin != null) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.login,
-                                size: 16,
-                                color: Colors.orange,
-                              ),
-                              const SizedBox(width: 6),
-                              const Text(
-                                'Último login: ',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  '${ultimoLogin.day.toString().padLeft(2, '0')}/${ultimoLogin.month.toString().padLeft(2, '0')}/${ultimoLogin.year} às ${ultimoLogin.hour.toString().padLeft(2, '0')}:${ultimoLogin.minute.toString().padLeft(2, '0')}',
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
                 ],
-
                 // 🔒 ID do usuário (para administradores)
                 FutureBuilder<bool>(
                   future: SecurityHelper.temFuncaoAdministrativa(),
@@ -1237,508 +1293,628 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
             }
 
             final todos = snapshot.data!.docs;
-            final filtrados = todos.where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              final nome = (data['nome'] ?? '').toString().toLowerCase();
-              final funcao =
-                  (data.containsKey('funcao') ? data['funcao'] : 'indefinida')
-                      .toString();
-              final nomeConfere = nome.contains(buscaNome);
-              final funcaoConfere =
-                  filtroFuncao == 'todos' || funcao == filtroFuncao;
-              return nomeConfere && funcaoConfere;
-            }).toList();
 
-            if (filtrados.isEmpty) {
-              return const Center(
-                child: Text('Nenhum usuário encontrado com os filtros.'),
-              );
-            }
-
-            return ResponsiveCenter(
-              child: ListView(
-                children: [
-                  // Cabeçalho que vai subir junto com a lista
-                  const Padding(
-                    padding: EdgeInsets.only(
-                      top: 24,
-                      left: 24,
-                      right: 24,
-                      bottom: 8,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Icon(Icons.people, size: 48, color: Colors.teal),
-                        SizedBox(height: 8),
-                        Text(
-                          'Gerenciar Usuários',
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.teal,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Visualize, edite e exclua usuários cadastrados no sistema.',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.teal,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Botão de Cadastro de Novo Usuário
-                  FutureBuilder<bool>(
-                    future: SecurityHelper.podeGerenciarUsuarios(),
-                    builder: (context, snapshot) {
-                      if (snapshot.data == true) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 8,
-                          ),
-                          child: ElevatedButton.icon(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const CadastroUsuarioScreen(),
-                              ),
-                            ),
-                            icon: const Icon(Icons.person_add),
-                            label: const Text('Cadastrar Novo Usuário'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.teal,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                                horizontal: 16,
-                              ),
-                              minimumSize: const Size(double.infinity, 48),
-                            ),
-                          ),
-                        );
+            return ValueListenableBuilder<String>(
+              valueListenable: _filtroNotifier,
+              builder: (context, termoBusca, _) {
+                return ValueListenableBuilder<String>(
+                  valueListenable: _funcaoNotifier,
+                  builder: (context, funcaoFiltro, _) {
+                    String _normalizar(String v) {
+                      final lower = v.toLowerCase();
+                      const acentos = {
+                        'á': 'a',
+                        'à': 'a',
+                        'ã': 'a',
+                        'â': 'a',
+                        'ä': 'a',
+                        'é': 'e',
+                        'è': 'e',
+                        'ê': 'e',
+                        'ë': 'e',
+                        'í': 'i',
+                        'ì': 'i',
+                        'î': 'i',
+                        'ï': 'i',
+                        'ó': 'o',
+                        'ò': 'o',
+                        'ô': 'o',
+                        'õ': 'o',
+                        'ö': 'o',
+                        'ú': 'u',
+                        'ù': 'u',
+                        'û': 'u',
+                        'ü': 'u',
+                        'ç': 'c',
+                      };
+                      final buffer = StringBuffer();
+                      for (final ch in lower.split('')) {
+                        buffer.write(acentos[ch] ?? ch);
                       }
-                      return const SizedBox.shrink();
-                    },
-                  ),
+                      return buffer.toString();
+                    }
 
-                  // Indicadores de Segurança
-                  FutureBuilder<Map<String, dynamic>>(
-                    future: _obterStatusSeguranca(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) return const SizedBox.shrink();
+                    final termoBuscaNormalizado = _normalizar(termoBusca);
 
-                      final status = snapshot.data!;
-                      final podeGerenciar = status['podeGerenciar'] as bool;
-                      final funcaoAtual = status['funcaoAtual'] as String;
-                      final isAdmin = status['isAdmin'] as bool;
-
-                      return Container(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: podeGerenciar
-                              ? Colors.green.shade50
-                              : Colors.orange.shade50,
-                          border: Border.all(
-                            color: podeGerenciar
-                                ? Colors.green.shade300
-                                : Colors.orange.shade300,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              podeGerenciar ? Icons.verified_user : Icons.info,
-                              color: podeGerenciar
-                                  ? Colors.green
-                                  : Colors.orange,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Nível de acesso: $funcaoAtual${isAdmin ? ' (Administrador)' : ''}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: podeGerenciar
-                                          ? Colors.green.shade700
-                                          : Colors.orange.shade700,
-                                    ),
-                                  ),
-                                  Text(
-                                    podeGerenciar
-                                        ? '✅ Você pode criar, editar e excluir usuários'
-                                        : '⚠️ Acesso limitado - apenas visualização',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: podeGerenciar
-                                          ? Colors.green.shade600
-                                          : Colors.orange.shade600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (isAdmin)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade100,
-                                  border: Border.all(
-                                    color: Colors.red.shade300,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  'ADMIN',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                    final filtrados = todos.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final nomeOriginal = (data['nome'] ?? '').toString();
+                      final nome = _normalizar(nomeOriginal);
+                      final funcao = (data['funcao'] ?? 'indefinida')
+                          .toString();
+                      final usuarioNorm = _normalizar(
+                        (data['nomeUsuario'] ?? data['nomeusuario'] ?? '')
+                            .toString(),
                       );
-                    },
-                  ),
+                      final emailNorm = _normalizar(
+                        (data['email'] ?? '').toString(),
+                      );
+                      final nomeConfere =
+                          termoBuscaNormalizado.isEmpty ||
+                          nome.contains(termoBuscaNormalizado) ||
+                          usuarioNorm.contains(termoBuscaNormalizado) ||
+                          emailNorm.contains(termoBuscaNormalizado);
+                      final funcaoConfere =
+                          funcaoFiltro == 'todos' || funcao == funcaoFiltro;
+                      return nomeConfere && funcaoConfere;
+                    }).toList();
 
-                  // Campos de filtro
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        TextField(
-                          decoration: const InputDecoration(
-                            labelText: 'Buscar por nome',
-                            prefixIcon: Icon(Icons.search),
-                          ),
-                          onChanged: (value) {
-                            setState(() {
-                              buscaNome = value.trim().toLowerCase();
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: filtroFuncao,
-                          items: funcoesDisponiveis
-                              .map(
-                                (f) => DropdownMenuItem(
-                                  value: f,
-                                  child: Text(
-                                    f == 'todos' ? 'Todas as funções' : f,
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              filtroFuncao = value!;
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Filtrar por função',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Lista de usuários
-                  ...filtrados.map((doc) {
-                    final uid = doc.id;
-                    final data = doc.data() as Map<String, dynamic>;
-                    final nome = data['nome'] ?? 'Sem nome';
-                    final email = data['email'] ?? 'Sem email';
-                    final funcao = data.containsKey('funcao')
-                        ? data['funcao']
-                        : 'indefinida';
-                    final icone = funcoesComIcone[funcao] ?? Icons.person;
-                    final isCurrentUser = uid == uidAtual;
-
-                    return FutureBuilder<Map<String, bool>>(
-                      future: _verificarPermissoesParaUsuario(uid, funcao),
-                      builder: (context, permSnapshot) {
-                        final permissoes =
-                            permSnapshot.data ??
-                            {
-                              'podeEditar': false,
-                              'podeExcluir': false,
-                              'podeVerDetalhes': true,
-                            };
-
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 6,
-                          ),
-                          elevation: isCurrentUser ? 4 : 2,
-                          color: isCurrentUser ? Colors.blue.shade50 : null,
-                          child: ListTile(
-                            leading: Stack(
+                    return ResponsiveCenter(
+                      child: ListView(
+                        children: [
+                          // Cabeçalho que vai subir junto com a lista
+                          const Padding(
+                            padding: EdgeInsets.only(
+                              top: 24,
+                              left: 24,
+                              right: 24,
+                              bottom: 8,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Icon(
-                                  icone,
-                                  color: isCurrentUser
-                                      ? Colors.blue
-                                      : Colors.teal,
-                                  size: 28,
+                                  Icons.people,
+                                  size: 48,
+                                  color: Colors.teal,
                                 ),
-                                if (isCurrentUser)
-                                  Positioned(
-                                    right: 0,
-                                    top: 0,
-                                    child: Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.green,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.check,
-                                        size: 8,
-                                        color: Colors.white,
-                                      ),
-                                    ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Gerenciar Usuários',
+                                  style: TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.teal,
                                   ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Visualize, edite e exclua usuários cadastrados no sistema.',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.teal,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
                               ],
                             ),
-                            title: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    nome,
-                                    style: TextStyle(
-                                      fontWeight: isCurrentUser
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color: isCurrentUser
-                                          ? Colors.blue.shade700
-                                          : null,
+                          ),
+
+                          // Botão de Cadastro de Novo Usuário
+                          FutureBuilder<bool>(
+                            future: SecurityHelper.podeGerenciarUsuarios(),
+                            builder: (context, snapshot) {
+                              if (snapshot.data == true) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 8,
+                                  ),
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const CadastroUsuarioScreen(),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.person_add),
+                                    label: const Text('Cadastrar Novo Usuário'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.teal,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                        horizontal: 16,
+                                      ),
+                                      minimumSize: const Size(
+                                        double.infinity,
+                                        48,
+                                      ),
                                     ),
                                   ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+
+                          // Indicadores de Segurança
+                          FutureBuilder<Map<String, dynamic>>(
+                            future: _obterStatusSeguranca(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData)
+                                return const SizedBox.shrink();
+
+                              final status = snapshot.data!;
+                              final podeGerenciar =
+                                  status['podeGerenciar'] as bool;
+                              final funcaoAtual =
+                                  status['funcaoAtual'] as String;
+                              final isAdmin = status['isAdmin'] as bool;
+
+                              return Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
                                 ),
-                                if (isCurrentUser)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue.shade100,
-                                      border: Border.all(
-                                        color: Colors.blue.shade300,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Text(
-                                      'VOCÊ',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue,
-                                      ),
-                                    ),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: podeGerenciar
+                                      ? Colors.green.shade50
+                                      : Colors.orange.shade50,
+                                  border: Border.all(
+                                    color: podeGerenciar
+                                        ? Colors.green.shade300
+                                        : Colors.orange.shade300,
                                   ),
-                                if (funcao == 'admin')
-                                  Container(
-                                    margin: const EdgeInsets.only(left: 4),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.shade100,
-                                      border: Border.all(
-                                        color: Colors.red.shade300,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Text(
-                                      'ADMIN',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.red,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Função: $funcao'),
-                                if (email.isNotEmpty && email != 'Sem email')
-                                  Text(
-                                    email,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                // 🛡️ Indicadores de permissão
-                                const SizedBox(height: 4),
-                                Row(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
                                   children: [
-                                    if (permissoes['podeEditar']!)
-                                      Container(
-                                        margin: const EdgeInsets.only(right: 4),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 1,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green.shade100,
-                                          borderRadius: BorderRadius.circular(
-                                            3,
+                                    Icon(
+                                      podeGerenciar
+                                          ? Icons.verified_user
+                                          : Icons.info,
+                                      color: podeGerenciar
+                                          ? Colors.green
+                                          : Colors.orange,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Nível de acesso: $funcaoAtual${isAdmin ? ' (Administrador)' : ''}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: podeGerenciar
+                                                  ? Colors.green.shade700
+                                                  : Colors.orange.shade700,
+                                            ),
                                           ),
-                                        ),
-                                        child: const Text(
-                                          '✏️ Editável',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: Colors.green,
+                                          Text(
+                                            podeGerenciar
+                                                ? '✅ Você pode criar, editar e excluir usuários'
+                                                : '⚠️ Acesso limitado - apenas visualização',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: podeGerenciar
+                                                  ? Colors.green.shade600
+                                                  : Colors.orange.shade600,
+                                            ),
                                           ),
-                                        ),
+                                        ],
                                       ),
-                                    if (permissoes['podeExcluir']!)
+                                    ),
+                                    if (isAdmin)
                                       Container(
-                                        margin: const EdgeInsets.only(right: 4),
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 1,
+                                          horizontal: 6,
+                                          vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
                                           color: Colors.red.shade100,
+                                          border: Border.all(
+                                            color: Colors.red.shade300,
+                                          ),
                                           borderRadius: BorderRadius.circular(
-                                            3,
+                                            4,
                                           ),
                                         ),
                                         child: const Text(
-                                          '🗑️ Excluível',
+                                          'ADMIN',
                                           style: TextStyle(
-                                            fontSize: 9,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
                                             color: Colors.red,
-                                          ),
-                                        ),
-                                      ),
-                                    if (!permissoes['podeEditar']! &&
-                                        !permissoes['podeExcluir']!)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 1,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.shade200,
-                                          borderRadius: BorderRadius.circular(
-                                            3,
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          '👁️ Apenas leitura',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: Colors.grey,
                                           ),
                                         ),
                                       ),
                                   ],
                                 ),
+                              );
+                            },
+                          ),
+
+                          // Campos de filtro
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              children: [
+                                TextField(
+                                  controller: _buscaController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Buscar por nome',
+                                    prefixIcon: Icon(Icons.search),
+                                  ),
+                                  onChanged: (value) {
+                                    _filtroNotifier.value = value
+                                        .trim()
+                                        .toLowerCase();
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                DropdownButtonFormField<String>(
+                                  value: funcaoFiltro,
+                                  items: funcoesDisponiveis
+                                      .map(
+                                        (f) => DropdownMenuItem(
+                                          value: f,
+                                          child: Text(
+                                            f == 'todos'
+                                                ? 'Todas as funções'
+                                                : f,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    _funcaoNotifier.value = value!;
+                                  },
+                                  decoration: const InputDecoration(
+                                    labelText: 'Filtrar por função',
+                                  ),
+                                ),
                               ],
                             ),
-                            trailing:
-                                permissoes['podeEditar']! ||
-                                    permissoes['podeExcluir']!
-                                ? PopupMenuButton<String>(
-                                    onSelected: (value) {
-                                      if (value == 'editar') {
-                                        _editarUsuario(
-                                          context,
-                                          uid,
-                                          nome,
-                                          funcao,
-                                        );
-                                      } else if (value == 'excluir') {
-                                        _excluirUsuario(context, uid);
-                                      }
-                                    },
-                                    itemBuilder: (context) => [
-                                      if (permissoes['podeEditar']!)
-                                        const PopupMenuItem(
-                                          value: 'editar',
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.edit, size: 16),
-                                              SizedBox(width: 8),
-                                              Text('Editar'),
-                                            ],
+                          ),
+
+                          // Mensagem quando não há resultados
+                          if (filtrados.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.search_off,
+                                    size: 64,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Nenhum usuário encontrado',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Tente ajustar os filtros de busca',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          // Lista de usuários
+                          ...filtrados.map((doc) {
+                            final uid = doc.id;
+                            final data = doc.data() as Map<String, dynamic>;
+                            final nome = data['nome'] ?? 'Sem nome';
+                            final email = data['email'] ?? 'Sem email';
+                            final funcao = data.containsKey('funcao')
+                                ? data['funcao']
+                                : 'indefinida';
+                            final icone =
+                                funcoesComIcone[funcao] ?? Icons.person;
+                            final isCurrentUser = uid == uidAtual;
+
+                            return FutureBuilder<Map<String, bool>>(
+                              future: _verificarPermissoesParaUsuario(
+                                uid,
+                                funcao,
+                              ),
+                              builder: (context, permSnapshot) {
+                                final permissoes =
+                                    permSnapshot.data ??
+                                    {
+                                      'podeEditar': false,
+                                      'podeExcluir': false,
+                                      'podeVerDetalhes': true,
+                                    };
+
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 6,
+                                  ),
+                                  elevation: isCurrentUser ? 4 : 2,
+                                  color: isCurrentUser
+                                      ? Colors.blue.shade50
+                                      : null,
+                                  child: ListTile(
+                                    leading: Stack(
+                                      children: [
+                                        Icon(
+                                          icone,
+                                          color: isCurrentUser
+                                              ? Colors.blue
+                                              : Colors.teal,
+                                          size: 28,
+                                        ),
+                                        if (isCurrentUser)
+                                          Positioned(
+                                            right: 0,
+                                            top: 0,
+                                            child: Container(
+                                              width: 12,
+                                              height: 12,
+                                              decoration: const BoxDecoration(
+                                                color: Colors.green,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(
+                                                Icons.check,
+                                                size: 8,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            nome,
+                                            style: TextStyle(
+                                              fontWeight: isCurrentUser
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                              color: isCurrentUser
+                                                  ? Colors.blue.shade700
+                                                  : null,
+                                            ),
                                           ),
                                         ),
-                                      if (permissoes['podeExcluir']!)
-                                        const PopupMenuItem(
-                                          value: 'excluir',
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.delete,
-                                                size: 16,
+                                        if (isCurrentUser)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.blue.shade100,
+                                              border: Border.all(
+                                                color: Colors.blue.shade300,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: const Text(
+                                              'VOCÊ',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.blue,
+                                              ),
+                                            ),
+                                          ),
+                                        if (funcao == 'admin')
+                                          Container(
+                                            margin: const EdgeInsets.only(
+                                              left: 4,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red.shade100,
+                                              border: Border.all(
+                                                color: Colors.red.shade300,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: const Text(
+                                              'ADMIN',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
                                                 color: Colors.red,
                                               ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'Excluir',
-                                                style: TextStyle(
-                                                  color: Colors.red,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Função: $funcao'),
+                                        if (email.isNotEmpty &&
+                                            email != 'Sem email')
+                                          Text(
+                                            email,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        // 🛡️ Indicadores de permissão
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            if (permissoes['podeEditar']!)
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                  right: 4,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 1,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green.shade100,
+                                                  borderRadius:
+                                                      BorderRadius.circular(3),
+                                                ),
+                                                child: const Text(
+                                                  '✏️ Editável',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    color: Colors.green,
+                                                  ),
                                                 ),
                                               ),
-                                            ],
-                                          ),
+                                            if (permissoes['podeExcluir']!)
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                  right: 4,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 1,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.red.shade100,
+                                                  borderRadius:
+                                                      BorderRadius.circular(3),
+                                                ),
+                                                child: const Text(
+                                                  '🗑️ Excluível',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
+                                              ),
+                                            if (!permissoes['podeEditar']! &&
+                                                !permissoes['podeExcluir']!)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 1,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade200,
+                                                  borderRadius:
+                                                      BorderRadius.circular(3),
+                                                ),
+                                                child: const Text(
+                                                  '👁️ Apenas leitura',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
-                                    ],
-                                  )
-                                : const Icon(
-                                    Icons.lock,
-                                    size: 20,
-                                    color: Colors.grey,
+                                      ],
+                                    ),
+                                    trailing:
+                                        permissoes['podeEditar']! ||
+                                            permissoes['podeExcluir']!
+                                        ? PopupMenuButton<String>(
+                                            onSelected: (value) {
+                                              if (value == 'editar') {
+                                                _editarUsuario(
+                                                  context,
+                                                  uid,
+                                                  nome,
+                                                  funcao,
+                                                );
+                                              } else if (value == 'excluir') {
+                                                _excluirUsuario(context, uid);
+                                              }
+                                            },
+                                            itemBuilder: (context) => [
+                                              if (permissoes['podeEditar']!)
+                                                const PopupMenuItem(
+                                                  value: 'editar',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.edit,
+                                                        size: 16,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text('Editar'),
+                                                    ],
+                                                  ),
+                                                ),
+                                              if (permissoes['podeExcluir']!)
+                                                const PopupMenuItem(
+                                                  value: 'excluir',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.delete,
+                                                        size: 16,
+                                                        color: Colors.red,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text(
+                                                        'Excluir',
+                                                        style: TextStyle(
+                                                          color: Colors.red,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                            ],
+                                          )
+                                        : const Icon(
+                                            Icons.lock,
+                                            size: 20,
+                                            color: Colors.grey,
+                                          ),
+                                    onTap: permissoes['podeVerDetalhes']!
+                                        ? () => _mostrarDetalhesUsuario(
+                                            context,
+                                            data,
+                                            uid,
+                                          )
+                                        : null,
                                   ),
-                            onTap: permissoes['podeVerDetalhes']!
-                                ? () => _mostrarDetalhesUsuario(
-                                    context,
-                                    data,
-                                    uid,
-                                  )
-                                : null,
-                          ),
-                        );
-                      },
+                                );
+                              },
+                            );
+                          }),
+                        ],
+                      ),
                     );
-                  }),
-                ],
-              ),
+                  },
+                );
+              },
             );
           },
         ),

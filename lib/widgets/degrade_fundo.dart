@@ -11,7 +11,7 @@ class DegradeFundo extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             Color.fromARGB(255, 224, 242, 234),
-            Color.fromARGB(255, 178, 223, 206)
+            Color.fromARGB(255, 178, 223, 206),
           ],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,

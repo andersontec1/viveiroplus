@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class AuditHelper {
   static const String _collection = 'logs_auditoria';
-  
+
   /// Registra uma ação de auditoria no sistema
   static Future<void> registrarAcao({
     required String acao,
@@ -22,9 +22,9 @@ class AuditHelper {
           .collection('usuarios')
           .doc(user.uid)
           .get();
-      
+
       final userData = userDoc.data() ?? {};
-      
+
       await FirebaseFirestore.instance.collection(_collection).add({
         'timestamp': Timestamp.now(),
         'acao': acao,
@@ -79,7 +79,10 @@ class AuditHelper {
       detalhes: {
         'dados_anteriores': dadosAnteriores,
         'dados_novos': dadosNovos,
-        'campos_alterados': _identificarCamposAlterados(dadosAnteriores, dadosNovos),
+        'campos_alterados': _identificarCamposAlterados(
+          dadosAnteriores,
+          dadosNovos,
+        ),
       },
     );
   }
@@ -93,9 +96,7 @@ class AuditHelper {
       acao: 'USUARIO_EXCLUIDO',
       modulo: 'GERENCIAMENTO_USUARIOS',
       usuarioAfetado: uidExcluido,
-      detalhes: {
-        'dados_usuario_excluido': dadosUsuario,
-      },
+      detalhes: {'dados_usuario_excluido': dadosUsuario},
       observacoes: 'Usuário removido do Firestore, conta Auth permanece ativa',
     );
   }
@@ -109,27 +110,23 @@ class AuditHelper {
     await registrarAcao(
       acao: 'ACESSO_NEGADO',
       modulo: 'SEGURANCA',
-      detalhes: {
-        'acao_tentada': acao,
-        'motivo': motivo,
-        ...?detalhes,
-      },
+      detalhes: {'acao_tentada': acao, 'motivo': motivo, ...?detalhes},
     );
   }
 
   /// Identifica campos que foram alterados
   static List<String> _identificarCamposAlterados(
-    Map<String, dynamic> anterior, 
-    Map<String, dynamic> novo
+    Map<String, dynamic> anterior,
+    Map<String, dynamic> novo,
   ) {
     final camposAlterados = <String>[];
-    
+
     for (final key in novo.keys) {
       if (anterior[key] != novo[key]) {
         camposAlterados.add(key);
       }
     }
-    
+
     return camposAlterados;
   }
 
@@ -159,11 +156,17 @@ class AuditHelper {
     }
 
     if (dataInicio != null) {
-      query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(dataInicio));
+      query = query.where(
+        'timestamp',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(dataInicio),
+      );
     }
 
     if (dataFim != null) {
-      query = query.where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(dataFim));
+      query = query.where(
+        'timestamp',
+        isLessThanOrEqualTo: Timestamp.fromDate(dataFim),
+      );
     }
 
     return query.limit(limite);

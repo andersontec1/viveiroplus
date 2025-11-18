@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:viveiro_plus/helpers/parametros_analise_helper.dart';
 
 /// Configuração de um parâmetro da análise de água
 class ParametroAnalise {
@@ -107,13 +108,6 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       chaveFirestore: 'turbidez',
     ),
     ParametroAnalise(
-      label: 'Saturação de O2 Dissolvido (%)',
-      icon: Icons.bubble_chart,
-      minIdeal: 80.0,
-      maxIdeal: 120.0,
-      chaveFirestore: 'saturacao_oxigenio',
-    ),
-    ParametroAnalise(
       label: 'Salinidade (ppt)',
       icon: Icons.opacity,
       minIdeal: 30.0,
@@ -143,6 +137,10 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
     ),
   ];
 
+  // Faixas dinâmicas carregadas do Firestore (fallback: defaults)
+  Map<String, Map<String, double>> _faixas =
+      ParametrosAnaliseHelper.getDefaultsAsDouble();
+
   @override
   void initState() {
     super.initState();
@@ -152,6 +150,13 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
     _inicializarDados();
     _carregarDestinos();
     _adicionarListeners();
+    _carregarFaixas();
+  }
+
+  Future<void> _carregarFaixas() async {
+    final map = await ParametrosAnaliseHelper.carregarTodos();
+    if (!mounted) return;
+    setState(() => _faixas = map);
   }
 
   void _inicializarControllers() {
@@ -202,9 +207,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
 
   Future<void> _carregarDestinos() async {
     if (!widget.mostrarSeletorDestino) return;
-
     try {
-      // Carregar viveiros
       final snapshotViveiros = await FirebaseFirestore.instance
           .collection('viveiros')
           .get();
@@ -218,7 +221,6 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
         }
       }
 
-      // Carregar berçários
       final snapshotBercarios = await FirebaseFirestore.instance
           .collection('bercarios')
           .get();
@@ -232,21 +234,22 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
         }
       }
 
-      setState(() {
-        _viveiros = viveiros;
-        _bercarios = bercarios;
-      });
+      if (mounted) {
+        setState(() {
+          _viveiros = viveiros;
+          _bercarios = bercarios;
+        });
+      }
     } catch (e) {
-      print('Erro ao carregar destinos: $e');
+      debugPrint('Erro ao carregar destinos: $e');
     }
   }
 
-  String _formatDateTime(DateTime dt) {
-    return DateFormat('dd/MM/yyyy HH:mm').format(dt);
-  }
+  String _formatDateTime(DateTime dt) =>
+      DateFormat('dd/MM/yyyy HH:mm').format(dt);
 
   Future<void> _onSubmit() async {
-    if (_saving) return; // evita cliques repetidos
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
 
     if (widget.mostrarSeletorDestino &&
@@ -257,43 +260,41 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       return;
     }
 
-    // Verificar campos preenchidos e fora de faixa
-    final List<Map<String, dynamic>> foraFaixa = [];
+    final List<Map<String, dynamic>> listaForaFaixa = [];
     final Map<String, dynamic> dadosParaSalvar = {};
-
     for (final param in _parametros) {
       final controller = _controllers[param.chaveFirestore]!;
       if (controller.text.isNotEmpty) {
-        final valor = double.tryParse(controller.text);
+        final valor = double.tryParse(controller.text.replaceAll(',', '.'));
         if (valor != null) {
           dadosParaSalvar[param.chaveFirestore] = valor;
-          if (param.foraFaixa(valor)) {
-            foraFaixa.add({
+          final faixa =
+              _faixas[param.chaveFirestore] ??
+              ParametrosAnaliseHelper.getDefaultsAsDouble()[param
+                  .chaveFirestore]!;
+          final fora = valor < faixa['min']! || valor > faixa['max']!;
+          if (fora) {
+            listaForaFaixa.add({
               'nome': param.label,
               'valor': valor,
-              'ideal': param.faixaIdealTexto,
+              'ideal': '${faixa['min']} – ${faixa['max']}',
             });
           }
         }
       }
     }
 
-    // Adicionar observações e data/hora
     dadosParaSalvar['observacoes'] = _obsCtrl.text.trim();
     dadosParaSalvar['dataHora'] = Timestamp.fromDate(_registroDt);
 
-    // Se não estamos em modo edição, adicionar dados do destino
     if (widget.mostrarSeletorDestino && !widget.modoEdicao) {
       final nome = _tipoSelecionado == 'viveiro'
           ? (_viveiros[_codigoSelecionado!] ?? '—')
           : (_bercarios[_codigoSelecionado!] ?? '—');
-
       dadosParaSalvar['tipoDestino'] = _tipoSelecionado;
       dadosParaSalvar['codigo'] = _codigoSelecionado;
       dadosParaSalvar['nome'] = nome;
       dadosParaSalvar['criadoEm'] = Timestamp.now();
-
-      // Adicionar informações do usuário
       final user = FirebaseAuth.instance.currentUser;
       String nomeUsuario = '—';
       if (user != null) {
@@ -306,7 +307,6 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       dadosParaSalvar['registradoPor'] = nomeUsuario;
     }
 
-    // Se estamos em modo edição, adicionar dados de auditoria
     if (widget.modoEdicao) {
       final user = FirebaseAuth.instance.currentUser;
       String nomeUsuario = '—';
@@ -321,9 +321,8 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       dadosParaSalvar['editadoEm'] = Timestamp.now();
     }
 
-    // Validar parâmetros fora de faixa
-    if (foraFaixa.isNotEmpty) {
-      final continuar = await _mostrarDialogoForaFaixa(foraFaixa);
+    if (listaForaFaixa.isNotEmpty) {
+      final continuar = await _mostrarDialogoForaFaixa(listaForaFaixa);
       if (!continuar) return;
     }
 
@@ -464,7 +463,11 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
     final controller = _controllers[param.chaveFirestore]!;
     final text = controller.text;
     final valor = double.tryParse(text);
-    final fora = valor != null && param.foraFaixa(valor);
+    final faixa =
+        _faixas[param.chaveFirestore] ??
+        ParametrosAnaliseHelper.getDefaultsAsDouble()[param.chaveFirestore]!;
+    final fora =
+        valor != null && (valor < faixa['min']! || valor > faixa['max']!);
 
     Color? fillColor;
     Color? borderColor;
@@ -506,7 +509,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
         Padding(
           padding: const EdgeInsets.only(top: 4, left: 4),
           child: Text(
-            'Faixa ideal: ${param.faixaIdealTexto} Fora disso, notifique o supervisor.',
+            'Faixa ideal: ${faixa['min']} – ${faixa['max']} Fora disso, notifique o supervisor.',
             style: TextStyle(
               fontSize: 15,
               color: fora ? Colors.red : Colors.teal,
@@ -517,6 +520,8 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
       ],
     );
   }
+
+  // Parametrização movida para tela dedicada; função removida.
 
   Widget _buildSeletorDestino() {
     if (!widget.mostrarSeletorDestino) return const SizedBox.shrink();
@@ -593,6 +598,7 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
         key: _formKey,
         child: ListView(
           children: [
+            // Parametrização movida para uma tela dedicada no menu principal
             _buildSeletorDestino(),
 
             const Divider(thickness: 2, height: 32),
@@ -614,7 +620,6 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
             _buildCampoParametro(_parametros[2]), // Saturação percentual
             _buildCampoParametro(_parametros[3]), // Temperatura
             _buildCampoParametro(_parametros[4]), // Turbidez
-            _buildCampoParametro(_parametros[5]), // Saturação O2
 
             const Divider(thickness: 2, height: 32),
             const Center(
@@ -630,10 +635,10 @@ class _AnaliseAguaFormState extends State<AnaliseAguaForm> {
             const SizedBox(height: 8),
 
             // Parâmetros químicos
-            _buildCampoParametro(_parametros[6]), // Salinidade
-            _buildCampoParametro(_parametros[7]), // Cálcio
-            _buildCampoParametro(_parametros[8]), // Nitrito
-            _buildCampoParametro(_parametros[9]), // Amônia
+            _buildCampoParametro(_parametros[5]), // Salinidade
+            _buildCampoParametro(_parametros[6]), // Cálcio
+            _buildCampoParametro(_parametros[7]), // Nitrito
+            _buildCampoParametro(_parametros[8]), // Amônia
 
             TextFormField(
               controller: _obsCtrl,

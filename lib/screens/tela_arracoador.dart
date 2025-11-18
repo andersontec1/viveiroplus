@@ -28,6 +28,7 @@ class _TelaArracoadorState extends State<TelaArracoador> {
   final _formKey = GlobalKey<FormState>();
   final _racaoController = TextEditingController();
   final _observacoesController = TextEditingController();
+  final _quantidadeBaldeMlGramasController = TextEditingController();
 
   String? _viveiroSelecionado; // display "codigo - nome"
   String? _tipoDestino = 'viveiro';
@@ -38,6 +39,16 @@ class _TelaArracoadorState extends State<TelaArracoador> {
   bool _probioticoAplicado = false;
   bool _suplementoAplicado = false;
   bool _isLoading = false;
+  DateTime? _dataRegistro; // Data do registro (padrão: hoje)
+  // Preview do dia do ciclo para a data selecionada
+  int? _diaCicloPreview;
+  DateTime? _inicioCicloPreview;
+  bool _temCicloAtivoPreview = false;
+  // Preview de totais (kg) para a data selecionada
+  double? _totalDiaPreviewKg;
+  double? _totalAcumuladoPreviewKg;
+  // Preview: registros por trato (1,2,3) no dia selecionado
+  Map<int, List<Map<String, dynamic>>> _tratosDiaPreview = {};
   // Lote de ração (FEFO)
   String? _insumoRacaoId;
   String? _insumoRacaoNome;
@@ -45,11 +56,18 @@ class _TelaArracoadorState extends State<TelaArracoador> {
   String? _loteSelecionadoCodigo;
   DateTime? _loteValidade;
   double? _loteQuantidadeAtual;
+  String? _loteUnidade; // Armazena a unidade do lote selecionado
   bool _carregandoLote = false;
   bool _loteSelecionadoVencido = false;
   int _qtdLotesVencidos = 0;
   int _qtdLotesProximos = 0;
   bool _carregandoAlertas = false;
+  bool _apenasComSaldoSelecaoLote = true;
+  String _unidadeBaldeSelecionada = 'mL'; // Para quando a unidade for balde
+  // Preferência por ponto de entrega que atende o destino
+  String? _pontoPreferidoId;
+  String? _pontoPreferidoNome;
+  bool _usarPreferenciaPonto = true;
 
   // Normaliza strings removendo acentos e case para comparações simples
   String _norm(String input) {
@@ -61,6 +79,169 @@ class _TelaArracoadorState extends State<TelaArracoador> {
     s = s.replaceAll(RegExp(r'[úùûü]'), 'u');
     s = s.replaceAll('ç', 'c');
     return s;
+  }
+
+  // Verifica se duas datas são do mesmo dia
+  bool _isMesmaData(DateTime d1, DateTime d2) {
+    return d1.year == d2.year && d1.month == d2.month && d1.day == d2.day;
+  }
+
+  // Atualiza o preview do dia do ciclo ao mudar data ou destino
+  Future<void> _atualizarDiaCicloPreview() async {
+    try {
+      if (_codigoDestino == null) {
+        if (mounted) {
+          setState(() {
+            _diaCicloPreview = null;
+            _inicioCicloPreview = null;
+            _temCicloAtivoPreview = false;
+            _totalDiaPreviewKg = null;
+            _totalAcumuladoPreviewKg = null;
+          });
+        }
+        return;
+      }
+
+      // Base da data selecionada (ou hoje) para todos os cálculos
+      final base = _dataRegistro ?? DateTime.now();
+      final baseDia = DateTime(base.year, base.month, base.day);
+      final proximoDia = baseDia.add(const Duration(days: 1));
+
+      // Calcular total do dia e preparar resumo por trato sempre, independentemente de haver ciclo ativo
+      double somaDia = 0.0;
+      final Map<int, List<Map<String, dynamic>>> tratos = {
+        1: <Map<String, dynamic>>[],
+        2: <Map<String, dynamic>>[],
+        3: <Map<String, dynamic>>[],
+      };
+      try {
+        final qsDia = await FirebaseFirestore.instance
+            .collection('racao')
+            .where('codigoDestino', isEqualTo: _codigoDestino)
+            .where('tipoDestino', isEqualTo: (_tipoDestino ?? 'viveiro'))
+            .get();
+        for (final d in qsDia.docs) {
+          final m = d.data();
+          final ts = m['dataRegistro'] as Timestamp?;
+          final dt = ts?.toDate();
+          if (dt == null) continue;
+          if (!dt.isBefore(baseDia) && dt.isBefore(proximoDia)) {
+            final q = m['quantidade'];
+            final qd = q is num ? q.toDouble() : double.tryParse('$q') ?? 0.0;
+            somaDia += qd;
+
+            final t = (m['trato'] is int) ? (m['trato'] as int) : null;
+            if (t != null && tratos.containsKey(t)) {
+              tratos[t]!.add({'hora': dt, 'quantidade': qd, 'id': d.id});
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Falha ao calcular total do dia (preview): $e');
+      }
+
+      final cicloSnap = await FirebaseFirestore.instance
+          .collection('ciclos')
+          .where('codigo', isEqualTo: _codigoDestino)
+          .where('encerrado', isEqualTo: false)
+          .limit(1)
+          .get();
+
+      if (cicloSnap.docs.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _diaCicloPreview = null;
+            _inicioCicloPreview = null;
+            _temCicloAtivoPreview = false;
+            _totalDiaPreviewKg = somaDia;
+            _totalAcumuladoPreviewKg = null;
+            _tratosDiaPreview = tratos;
+          });
+        }
+        return;
+      }
+
+      final ciclo = cicloSnap.docs.first.data();
+      DateTime? inicioCiclo;
+      if (ciclo['dataPovoamento'] is Timestamp) {
+        inicioCiclo = (ciclo['dataPovoamento'] as Timestamp).toDate();
+      } else if (ciclo['dataInicio'] is Timestamp) {
+        inicioCiclo = (ciclo['dataInicio'] as Timestamp).toDate();
+      }
+
+      if (inicioCiclo == null) {
+        if (mounted) {
+          setState(() {
+            _diaCicloPreview = null;
+            _inicioCicloPreview = null;
+            _temCicloAtivoPreview = false;
+            _totalDiaPreviewKg = somaDia;
+            _totalAcumuladoPreviewKg = null;
+            _tratosDiaPreview = tratos;
+          });
+        }
+        return;
+      }
+
+      final inicioDia = DateTime(
+        inicioCiclo.year,
+        inicioCiclo.month,
+        inicioCiclo.day,
+      );
+      int dia = baseDia.difference(inicioDia).inDays + 1;
+      if (dia < 1) {
+        // Antes do início do ciclo
+        dia = 0;
+      }
+
+      // Calcular totais do dia e acumulado (com base em registros existentes)
+      // somaDia já calculado acima
+      double somaAcumulado = 0.0;
+      try {
+        final qs = await FirebaseFirestore.instance
+            .collection('racao')
+            .where('codigoDestino', isEqualTo: _codigoDestino)
+            .where('tipoDestino', isEqualTo: (_tipoDestino ?? 'viveiro'))
+            .get();
+        for (final d in qs.docs) {
+          final m = d.data();
+          final ts = m['dataRegistro'] as Timestamp?;
+          final dt = ts?.toDate();
+          if (dt == null) continue;
+          final q = m['quantidade'];
+          final qd = q is num ? q.toDouble() : double.tryParse('$q') ?? 0.0;
+          // Total acumulado no ciclo até a data selecionada (inclusive)
+          if (!dt.isBefore(inicioDia) && dt.isBefore(proximoDia)) {
+            somaAcumulado += qd;
+          }
+        }
+      } catch (e) {
+        debugPrint('Falha ao calcular totais de preview: $e');
+      }
+
+      if (mounted) {
+        setState(() {
+          _diaCicloPreview = dia;
+          _inicioCicloPreview = inicioCiclo;
+          _temCicloAtivoPreview = true;
+          _totalDiaPreviewKg = somaDia;
+          _totalAcumuladoPreviewKg = somaAcumulado;
+          _tratosDiaPreview = tratos;
+        });
+      }
+    } catch (e) {
+      debugPrint('Falha ao atualizar preview de dia do ciclo: $e');
+      if (mounted) {
+        setState(() {
+          _diaCicloPreview = null;
+          _inicioCicloPreview = null;
+          _temCicloAtivoPreview = false;
+          _totalDiaPreviewKg = null;
+          _totalAcumuladoPreviewKg = null;
+          _tratosDiaPreview = {};
+        });
+      }
+    }
   }
 
   @override
@@ -77,13 +258,90 @@ class _TelaArracoadorState extends State<TelaArracoador> {
     }
     _carregarLoteFEFO();
     _carregarAlertasLotes();
+    if (_codigoDestino != null) {
+      _resolverPontoPreferido();
+      // Calcular preview inicial se já houver destino
+      _atualizarDiaCicloPreview();
+    }
   }
 
   @override
   void dispose() {
     _racaoController.dispose();
     _observacoesController.dispose();
+    _quantidadeBaldeMlGramasController.dispose();
     super.dispose();
+  }
+
+  Future<void> _resolverPontoPreferido() async {
+    try {
+      if (_codigoDestino == null) {
+        if (mounted) {
+          setState(() {
+            _pontoPreferidoId = null;
+            _pontoPreferidoNome = null;
+          });
+        }
+        return;
+      }
+      final base = FirebaseFirestore.instance
+          .collection('pontos_entrega')
+          .where('ativo', isEqualTo: true);
+      final tipo = (_tipoDestino ?? 'viveiro');
+      Query snapQuery;
+      try {
+        // Tenta consulta composta com arrayContains (pode exigir índice)
+        if (tipo == 'bercario') {
+          snapQuery = base.where(
+            'atendeBercarios',
+            arrayContains: _codigoDestino,
+          );
+        } else {
+          snapQuery = base.where(
+            'atendeViveiros',
+            arrayContains: _codigoDestino,
+          );
+        }
+        final snap = await snapQuery.limit(1).get();
+        if (snap.docs.isNotEmpty) {
+          final d = snap.docs.first;
+          final data = d.data() as Map<String, dynamic>?;
+          if (mounted) {
+            setState(() {
+              _pontoPreferidoId = d.id;
+              _pontoPreferidoNome = (data?['nome'] ?? '').toString();
+            });
+          }
+          return;
+        }
+      } catch (e) {
+        debugPrint(
+          'Índice composto ausente para pontos_entrega; usando fallback: $e',
+        );
+      }
+
+      // Fallback: busca somente por ativos e filtra em memória
+      final snapAll = await base.get();
+      MapEntry<String, Map<String, dynamic>>? escolhido;
+      for (final d in snapAll.docs) {
+        final data = d.data() as Map<String, dynamic>?;
+        final List v = (tipo == 'bercario')
+            ? (data?['atendeBercarios'] as List?) ?? const []
+            : (data?['atendeViveiros'] as List?) ?? const [];
+        if (v.contains(_codigoDestino)) {
+          escolhido = MapEntry(d.id, data ?? const {});
+          break; // pega o primeiro
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _pontoPreferidoId = escolhido?.key;
+          _pontoPreferidoNome = (escolhido?.value['nome'] ?? '').toString();
+        });
+      }
+    } catch (e) {
+      debugPrint('Falha ao resolver ponto preferido: $e');
+    }
   }
 
   Future<void> _salvarRegistro() async {
@@ -123,7 +381,8 @@ class _TelaArracoadorState extends State<TelaArracoador> {
       DocumentReference<Map<String, dynamic>>? docRef;
       try {
         final usuario = AuthHelper.obterUsuarioLogado();
-        final dataHora = DateTime.now();
+        // Usar data selecionada ou data/hora atual
+        final dataHora = _dataRegistro ?? DateTime.now();
 
         // Garantir que os campos de destino estejam preenchidos
         if (_codigoDestino == null || _destinoNome == null) {
@@ -189,9 +448,11 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                     }
                   }
                 } catch (_) {}
-                final atual = double.parse(
-                  _racaoController.text.replaceAll(',', '.'),
-                );
+                final atual =
+                    double.tryParse(
+                      _racaoController.text.replaceAll(',', '.'),
+                    ) ??
+                    0.0;
                 totalAcumulado = soma + atual;
               }
             }
@@ -201,6 +462,20 @@ class _TelaArracoadorState extends State<TelaArracoador> {
         }
 
         // Preparar dados com todos os campos necessários
+        final quantidadePrincipal = double.parse(
+          _racaoController.text.replaceAll(',', '.'),
+        );
+
+        // Se for balde e tiver quantidade específica em mL/g
+        String? quantidadeBaldeMlGramas;
+        String? unidadeBalde;
+        if (_loteUnidade?.toLowerCase() == 'balde' &&
+            _quantidadeBaldeMlGramasController.text.trim().isNotEmpty) {
+          quantidadeBaldeMlGramas = _quantidadeBaldeMlGramasController.text
+              .trim();
+          unidadeBalde = _unidadeBaldeSelecionada;
+        }
+
         final dados = {
           // Campos legados (mantidos para compatibilidade)
           'viveiro': _viveiroSelecionado,
@@ -213,9 +488,12 @@ class _TelaArracoadorState extends State<TelaArracoador> {
           'suplementoAplicado': _suplementoAplicado,
 
           // Campos existentes
-          'quantidade': double.parse(
-            _racaoController.text.replaceAll(',', '.'),
-          ),
+          'quantidade': quantidadePrincipal,
+          'unidade': _loteUnidade ?? 'kg',
+          // Campos adicionais para balde
+          if (quantidadeBaldeMlGramas != null)
+            'quantidadeBaldeMlGramas': quantidadeBaldeMlGramas,
+          if (unidadeBalde != null) 'unidadeBalde': unidadeBalde,
           // Campo de trato (1,2,3) opcional
           if (_tratoSelecionado != null) 'trato': _tratoSelecionado,
           // Novos campos automáticos
@@ -233,9 +511,7 @@ class _TelaArracoadorState extends State<TelaArracoador> {
             .add(dados);
 
         // Baixa de estoque via FEFO usando EstoqueHelper
-        final quantidadeKg = double.parse(
-          _racaoController.text.replaceAll(',', '.'),
-        );
+        final quantidadeKg = quantidadePrincipal;
         if (_insumoRacaoId == null && _insumoRacaoNome == null) {
           throw Exception(
             'Insumo de Ração não encontrado. Cadastre um insumo do tipo "Ração" no módulo de Estoque.',
@@ -329,6 +605,15 @@ class _TelaArracoadorState extends State<TelaArracoador> {
             backgroundColor: Colors.green,
           ),
         );
+        // Limpar campos para próximo registro
+        _racaoController.clear();
+        _observacoesController.clear();
+        _quantidadeBaldeMlGramasController.clear();
+        _dataRegistro = null;
+        _tratoSelecionado = null;
+        _probioticoAplicado = false;
+        _suplementoAplicado = false;
+
         Navigator.pop(context);
       } catch (e) {
         debugPrint('Erro ao salvar registro de ração: $e');
@@ -429,6 +714,8 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                   'validade': data['validade'],
                   'entrada': data['dataEntrada'],
                   'qtd': qtd,
+                  'unidade': data['unidade'], // Captura a unidade do lote
+                  'entregasPorPonto': data['entregasPorPonto'],
                 };
               })
               .where((m) => (m['qtd'] as double) > 0)
@@ -445,7 +732,27 @@ class _TelaArracoadorState extends State<TelaArracoador> {
         _insumoRacaoId = insumoDocSel.id;
         _insumoRacaoNome = (insumoDocSel.data()['nome'] ?? 'Ração').toString();
 
-        final lotes = lotesEscolhidos;
+        var lotes = lotesEscolhidos;
+        // Se houver ponto preferido e a preferência estiver ativa, trazer lotes desse ponto primeiro
+        if (_usarPreferenciaPonto && _pontoPreferidoId != null) {
+          final doPonto = <Map<String, dynamic>>[];
+          final outros = <Map<String, dynamic>>[];
+          for (final l in lotes) {
+            final eps = l['entregasPorPonto'];
+            bool pertence = false;
+            if (eps is List) {
+              try {
+                pertence = eps.any(
+                  (e) =>
+                      ((e['pontoId'] ?? e['id'] ?? '').toString()) ==
+                      _pontoPreferidoId,
+                );
+              } catch (_) {}
+            }
+            (pertence ? doPonto : outros).add(l);
+          }
+          lotes = [...doPonto, ...outros];
+        }
         // Ordenar FEFO: validade (não null primeiro, asc), depois dataEntrada
         lotes.sort((a, b) {
           DateTime va = a['validade'] is Timestamp
@@ -489,6 +796,7 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                   ? (selecionado['validade'] as Timestamp).toDate()
                   : null;
               _loteQuantidadeAtual = selecionado['qtd'];
+              _loteUnidade = selecionado['unidade']?.toString() ?? 'kg';
               _loteSelecionadoVencido = vencido;
             });
           }
@@ -614,9 +922,70 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                           ),
                         ],
                       ),
+                      const SizedBox(width: 8),
+                      Row(
+                        children: [
+                          const Text('Somente com saldo'),
+                          Switch(
+                            value: _apenasComSaldoSelecaoLote,
+                            onChanged: (v) => setStateModal(
+                              () => _apenasComSaldoSelecaoLote = v,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: 'Cadastrar novo lote de ração',
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            await Navigator.push(
+                              ctx,
+                              MaterialPageRoute(
+                                builder: (_) => TelaEntradaInsumo(
+                                  insumoIdPreSelecionado: _insumoRacaoId,
+                                ),
+                              ),
+                            );
+                            if (!ctx.mounted) return;
+                            Navigator.pop(ctx); // fecha o bottom sheet
+                            if (!mounted) return;
+                            _carregarLoteFEFO();
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Novo lote'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
+                if (_pontoPreferidoId != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Chip(
+                          label: Text(
+                            'Ponto preferido: ${_pontoPreferidoNome ?? ''}',
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        const Text('Priorizar lotes deste ponto'),
+                        Switch(
+                          value: _usarPreferenciaPonto,
+                          onChanged: (v) =>
+                              setStateModal(() => _usarPreferenciaPonto = v),
+                        ),
+                      ],
+                    ),
+                  ),
                 const Divider(),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -748,120 +1117,181 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                         return true;
                       }).toList();
 
-                      final itens = lotesFiltrados
-                          .where((l) => ((l['qtd'] as double?) ?? 0) > 0)
-                          .map((l) {
-                            final d =
-                                l['doc']
-                                    as QueryDocumentSnapshot<
-                                      Map<String, dynamic>
-                                    >;
-                            final data = l['data'] as Map<String, dynamic>;
-                            final validade = l['validade'] as DateTime?;
-                            final qtd = (l['qtd'] as double?) ?? 0.0;
-                            final vencido =
-                                validade != null && validade.isBefore(hoje);
-                            final perto =
-                                validade != null &&
-                                !vencido &&
-                                validade.difference(agora).inDays <= 7;
-                            final codigo =
-                                ((data['lote'] ?? data['loteCodigo'] ?? '')
-                                        as String)
-                                    .toString()
-                                    .isNotEmpty
-                                ? (data['lote'] ?? data['loteCodigo'])
-                                : d.id.substring(0, 6);
-                            final diasParaVencer = validade
-                                ?.difference(agora)
-                                .inDays;
-                            return ListTile(
-                              leading: Icon(
-                                Icons.inventory_2,
-                                color: vencido
-                                    ? Colors.red
-                                    : (perto ? Colors.orange : Colors.teal),
+                      // Determina exibição considerando filtro "somente com saldo"
+                      final lotesExibir = lotesFiltrados.where((l) {
+                        final qtd = (l['qtd'] as double?) ?? 0.0;
+                        if (_apenasComSaldoSelecaoLote) return qtd > 0;
+                        return true;
+                      }).toList();
+
+                      final itens = lotesExibir.map((l) {
+                        final d =
+                            l['doc']
+                                as QueryDocumentSnapshot<Map<String, dynamic>>;
+                        final data = l['data'] as Map<String, dynamic>;
+                        final validade = l['validade'] as DateTime?;
+                        final qtd = (l['qtd'] as double?) ?? 0.0;
+                        final vencido =
+                            validade != null && validade.isBefore(hoje);
+                        final perto =
+                            validade != null &&
+                            !vencido &&
+                            validade.difference(agora).inDays <= 7;
+                        final codigo =
+                            ((data['lote'] ?? data['loteCodigo'] ?? '')
+                                    as String)
+                                .toString()
+                                .isNotEmpty
+                            ? (data['lote'] ?? data['loteCodigo'])
+                            : d.id.substring(0, 6);
+                        final diasParaVencer = validade
+                            ?.difference(agora)
+                            .inDays;
+                        return ListTile(
+                          leading: Icon(
+                            Icons.inventory_2,
+                            color: vencido
+                                ? Colors.red
+                                : (perto ? Colors.orange : Colors.teal),
+                          ),
+                          title: Text(codigo),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                [
+                                  if (validade != null)
+                                    'Val: ${validade.day.toString().padLeft(2, '0')}/${validade.month.toString().padLeft(2, '0')}/${validade.year}'
+                                  else
+                                    'Sem validade',
+                                  'Restante: ${qtd.toStringAsFixed(2)} kg',
+                                ].join(' • '),
                               ),
-                              title: Text(codigo),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
+                              if ((l['fornecedor'] as String).isNotEmpty ||
+                                  diasParaVencer != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2.0),
+                                  child: Text(
                                     [
-                                      if (validade != null)
-                                        'Val: ${validade.day.toString().padLeft(2, '0')}/${validade.month.toString().padLeft(2, '0')}/${validade.year}'
-                                      else
-                                        'Sem validade',
-                                      'Restante: ${qtd.toStringAsFixed(2)} kg',
+                                      if ((l['fornecedor'] as String)
+                                          .isNotEmpty)
+                                        'Fornecedor: ${l['fornecedor']}',
+                                      if (diasParaVencer != null &&
+                                          !vencido &&
+                                          validade != null)
+                                        'Vence em ${diasParaVencer}d',
                                     ].join(' • '),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                    ),
                                   ),
-                                  if ((l['fornecedor'] as String).isNotEmpty ||
-                                      diasParaVencer != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 2.0),
-                                      child: Text(
-                                        [
-                                          if ((l['fornecedor'] as String)
-                                              .isNotEmpty)
-                                            'Fornecedor: ${l['fornecedor']}',
-                                          if (diasParaVencer != null &&
-                                              !vencido &&
-                                              validade != null)
-                                            'Vence em ${diasParaVencer}d',
-                                        ].join(' • '),
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black54,
+                                ),
+                            ],
+                          ),
+                          trailing: Wrap(
+                            spacing: 4,
+                            children: [
+                              if (vencido)
+                                const Chip(
+                                  label: Text('Vencido'),
+                                  backgroundColor: Colors.red,
+                                  labelStyle: TextStyle(color: Colors.white),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              if (!vencido && perto)
+                                const Chip(
+                                  label: Text('Vence logo'),
+                                  backgroundColor: Colors.orange,
+                                  labelStyle: TextStyle(color: Colors.white),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              if (qtd <= 0)
+                                const Chip(
+                                  label: Text('Sem saldo'),
+                                  backgroundColor: Colors.grey,
+                                  labelStyle: TextStyle(color: Colors.white),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                            ],
+                          ),
+                          onTap: qtd <= 0
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _loteSelecionadoId = d.id;
+                                    _loteSelecionadoCodigo = codigo;
+                                    _loteValidade = validade;
+                                    _loteQuantidadeAtual = qtd;
+                                    _loteSelecionadoVencido = vencido;
+                                  });
+                                  Navigator.pop(ctx);
+                                  if (vencido && ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Lote vencido selecionado. Confirme ao salvar.',
                                         ),
                                       ),
+                                    );
+                                  }
+                                },
+                        );
+                      }).toList();
+
+                      if (itens.isEmpty) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'Nenhum lote com saldo para os filtros atuais.',
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  alignment: WrapAlignment.center,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: () => setStateModal(() {
+                                        filtro = '';
+                                        ocultarVencidos = false;
+                                      }),
+                                      icon: const Icon(Icons.filter_alt_off),
+                                      label: const Text('Limpar filtros'),
                                     ),
-                                ],
-                              ),
-                              trailing: Wrap(
-                                spacing: 4,
-                                children: [
-                                  if (vencido)
-                                    const Chip(
-                                      label: Text('Vencido'),
-                                      backgroundColor: Colors.red,
-                                      labelStyle: TextStyle(
-                                        color: Colors.white,
+                                    ElevatedButton.icon(
+                                      onPressed: () async {
+                                        await Navigator.push(
+                                          ctx,
+                                          MaterialPageRoute(
+                                            builder: (_) => TelaEntradaInsumo(
+                                              insumoIdPreSelecionado:
+                                                  _insumoRacaoId,
+                                            ),
+                                          ),
+                                        );
+                                        if (!ctx.mounted) return;
+                                        Navigator.pop(ctx);
+                                        if (!mounted) return;
+                                        _carregarLoteFEFO();
+                                      },
+                                      icon: const Icon(Icons.add),
+                                      label: const Text(
+                                        'Cadastrar Lote (Estoque)',
                                       ),
-                                      visualDensity: VisualDensity.compact,
                                     ),
-                                  if (!vencido && perto)
-                                    const Chip(
-                                      label: Text('Vence logo'),
-                                      backgroundColor: Colors.orange,
-                                      labelStyle: TextStyle(
-                                        color: Colors.white,
-                                      ),
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                ],
-                              ),
-                              onTap: () {
-                                setState(() {
-                                  _loteSelecionadoId = d.id;
-                                  _loteSelecionadoCodigo = codigo;
-                                  _loteValidade = validade;
-                                  _loteQuantidadeAtual = qtd;
-                                  _loteSelecionadoVencido = vencido;
-                                });
-                                Navigator.pop(ctx);
-                                if (vencido && ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Lote vencido selecionado. Confirme ao salvar.',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                            );
-                          })
-                          .toList();
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
 
                       return ListView(children: itens);
                     },
@@ -912,42 +1342,7 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: 10),
-                      const Center(
-                        child: Column(
-                          children: [
-                            CircleAvatar(
-                              radius: 36,
-                              backgroundColor: Color(0xFF049F56),
-                              child: Icon(
-                                Icons.restaurant,
-                                size: 40,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(height: 10),
-                            Text(
-                              'Registro de Ração',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.teal,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              'Registre a oferta de ração nos viveiros e berçários com controle de lote (FEFO).',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.teal,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            SizedBox(height: 20),
-                          ],
-                        ),
-                      ),
+                      // Mantemos layout enxuto alinhado ao padrão de Análise de Água
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
@@ -1058,6 +1453,11 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                                             _codigoDestino = codigo;
                                             _destinoNome = display;
                                           });
+                                          _resolverPontoPreferido().then((_) {
+                                            _carregarLoteFEFO();
+                                          });
+                                          // Atualizar preview do dia do ciclo ao trocar destino
+                                          _atualizarDiaCicloPreview();
                                         },
                                       );
                                     }).toList(),
@@ -1249,13 +1649,53 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                                                   fontSize: 12,
                                                 ),
                                               ),
+                                              if (_pontoPreferidoNome != null)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        top: 4.0,
+                                                      ),
+                                                  child: Wrap(
+                                                    spacing: 8,
+                                                    runSpacing: 4,
+                                                    crossAxisAlignment:
+                                                        WrapCrossAlignment
+                                                            .center,
+                                                    children: [
+                                                      Chip(
+                                                        label: Text(
+                                                          'Ponto preferido: ${_pontoPreferidoNome!}',
+                                                        ),
+                                                        visualDensity:
+                                                            VisualDensity
+                                                                .compact,
+                                                      ),
+                                                      const Text(
+                                                        'Priorizar lotes do ponto',
+                                                      ),
+                                                      Switch(
+                                                        value:
+                                                            _usarPreferenciaPonto,
+                                                        onChanged: (v) => setState(
+                                                          () =>
+                                                              _usarPreferenciaPonto =
+                                                                  v,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
                                             ],
                                           ),
                                         ),
-                                        TextButton.icon(
-                                          onPressed: _trocarLote,
-                                          icon: const Icon(Icons.swap_horiz),
-                                          label: const Text('Trocar'),
+                                        // O botão 'Trocar' vai para a linha de baixo em telas estreitas
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: TextButton.icon(
+                                            onPressed: _trocarLote,
+                                            icon: const Icon(Icons.swap_horiz),
+                                            label: const Text('Trocar'),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -1272,10 +1712,16 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                               const SizedBox(height: 16),
                               TextFormField(
                                 controller: _racaoController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Quantidade (kg)',
-                                  border: OutlineInputBorder(),
-                                  suffixText: 'kg',
+                                decoration: InputDecoration(
+                                  labelText:
+                                      _loteUnidade?.toLowerCase() == 'balde'
+                                      ? 'Quantidade (baldes)'
+                                      : 'Quantidade (kg)',
+                                  border: const OutlineInputBorder(),
+                                  suffixText:
+                                      _loteUnidade?.toLowerCase() == 'balde'
+                                      ? 'baldes'
+                                      : 'kg',
                                 ),
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
@@ -1293,6 +1739,306 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                                   }
                                   return null;
                                 },
+                              ),
+                              // Campo adicional quando for balde (mL ou gramas)
+                              if (_loteUnidade?.toLowerCase() == 'balde') ...[
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: TextFormField(
+                                        controller:
+                                            _quantidadeBaldeMlGramasController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Qtd. específica',
+                                          border: const OutlineInputBorder(),
+                                          suffixText: _unidadeBaldeSelecionada,
+                                          helperText: 'Parcial do balde',
+                                        ),
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      flex: 2,
+                                      child: DropdownButtonFormField<String>(
+                                        value: _unidadeBaldeSelecionada,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Unidade',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 'mL',
+                                            child: Text('mL'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'g',
+                                            child: Text('g'),
+                                          ),
+                                        ],
+                                        onChanged: (v) {
+                                          if (v != null) {
+                                            setState(
+                                              () =>
+                                                  _unidadeBaldeSelecionada = v,
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline,
+                                        size: 16,
+                                        color: Colors.blue[700],
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Deixe vazio se usar baldes inteiros',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.blue[900],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+                              // Campo de Data do Registro
+                              InkWell(
+                                onTap: () async {
+                                  final now = DateTime.now();
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: _dataRegistro ?? now,
+                                    firstDate: DateTime(now.year - 1),
+                                    lastDate: now,
+                                    helpText: 'Selecione a data do trato',
+                                  );
+                                  if (picked != null) {
+                                    // Manter hora atual, apenas mudar dia
+                                    setState(() {
+                                      _dataRegistro = DateTime(
+                                        picked.year,
+                                        picked.month,
+                                        picked.day,
+                                        now.hour,
+                                        now.minute,
+                                      );
+                                    });
+                                    // Atualizar preview do dia do ciclo
+                                    await _atualizarDiaCicloPreview();
+                                  }
+                                },
+                                child: InputDecorator(
+                                  decoration: InputDecoration(
+                                    labelText: 'Data do Registro',
+                                    border: const OutlineInputBorder(),
+                                    prefixIcon: const Icon(
+                                      Icons.calendar_today,
+                                    ),
+                                    suffixIcon: _dataRegistro != null
+                                        ? IconButton(
+                                            icon: const Icon(Icons.clear),
+                                            onPressed: () {
+                                              setState(
+                                                () => _dataRegistro = null,
+                                              );
+                                              // Recalcular usando data de hoje
+                                              _atualizarDiaCicloPreview();
+                                            },
+                                            tooltip: 'Usar data de hoje',
+                                          )
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          _dataRegistro == null
+                                              ? 'Hoje (${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year})'
+                                              : '${_dataRegistro!.day.toString().padLeft(2, '0')}/${_dataRegistro!.month.toString().padLeft(2, '0')}/${_dataRegistro!.year}',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: _dataRegistro == null
+                                                ? Colors.grey[600]
+                                                : Colors.black,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              // Indicador de Dia do Ciclo (se houver ciclo ativo)
+                              if ((_temCicloAtivoPreview &&
+                                      _diaCicloPreview != null) ||
+                                  _totalDiaPreviewKg != null ||
+                                  _totalAcumuladoPreviewKg != null) ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.timeline, size: 18),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _diaCicloPreview == 0
+                                          ? 'Antes do início do ciclo'
+                                          : _diaCicloPreview == null
+                                          ? 'Dia do ciclo: —'
+                                          : 'Dia do ciclo: $_diaCicloPreview',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (_temCicloAtivoPreview &&
+                                    _inicioCicloPreview != null) ...[
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.flag_circle, size: 18),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Início do ciclo: '
+                                        '${_inicioCicloPreview!.day.toString().padLeft(2, '0')}/'
+                                        '${_inicioCicloPreview!.month.toString().padLeft(2, '0')}/'
+                                        '${_inicioCicloPreview!.year}',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.today, size: 18),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Total do dia: ' +
+                                          (_totalDiaPreviewKg == null
+                                              ? '—'
+                                              : '${_totalDiaPreviewKg!.toStringAsFixed(2)} kg'),
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.summarize, size: 18),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Total acumulado: ' +
+                                          (_totalAcumuladoPreviewKg == null
+                                              ? '—'
+                                              : '${_totalAcumuladoPreviewKg!.toStringAsFixed(2)} kg'),
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+                              // Resumo dos Tratos do Dia (1º, 2º, 3º)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: const [
+                                      Icon(Icons.list_alt, size: 18),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Tratos do dia',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  for (final t in [1, 2, 3]) ...[
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 4,
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          SizedBox(
+                                            width: 80,
+                                            child: Text(
+                                              '${t}º Trato',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Builder(
+                                              builder: (context) {
+                                                final lista =
+                                                    _tratosDiaPreview[t] ??
+                                                    const <
+                                                      Map<String, dynamic>
+                                                    >[];
+                                                if (lista.isEmpty) {
+                                                  return Text(
+                                                    '—',
+                                                    style: TextStyle(
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  );
+                                                }
+                                                return Wrap(
+                                                  spacing: 6,
+                                                  runSpacing: 6,
+                                                  children: lista.map((e) {
+                                                    final double? q =
+                                                        e['quantidade']
+                                                            as double?;
+                                                    final qtd = q == null
+                                                        ? '0.00'
+                                                        : q.toStringAsFixed(2);
+                                                    return Chip(
+                                                      label: Text('$qtd kg'),
+                                                      visualDensity:
+                                                          VisualDensity.compact,
+                                                      materialTapTargetSize:
+                                                          MaterialTapTargetSize
+                                                              .shrinkWrap,
+                                                    );
+                                                  }).toList(),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                               const SizedBox(height: 16),
                               // Seleção de Trato (opcional)
@@ -1378,6 +2124,33 @@ class _TelaArracoadorState extends State<TelaArracoador> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      // Mensagem informativa para registro retroativo
+                      if (_dataRegistro != null &&
+                          !_isMesmaData(_dataRegistro!, DateTime.now()))
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            border: Border.all(color: Colors.blue[300]!),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.blue[700]),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Registro retroativo: será salvo com a data selecionada.',
+                                  style: TextStyle(
+                                    color: Colors.blue[900],
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 24),
                       Row(
                         children: [

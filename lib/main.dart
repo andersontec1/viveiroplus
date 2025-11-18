@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:viveiro_plus/screens/tela_login.dart';
@@ -20,6 +21,18 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('pt_BR', null); // ESSENCIAL para evitar o erro
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Captura e loga erros globais de forma amigável no Web/Debug,
+  // ajudando a identificar a causa raiz antes do inspetor tentar renderizar diagnostics.
+  FlutterError.onError = (FlutterErrorDetails details) {
+    try {
+      debugPrint('FlutterError: ' + details.exceptionAsString());
+      if (kDebugMode) {
+        debugPrint(details.stack?.toString());
+      }
+    } catch (_) {}
+  };
+
   runApp(
     ChangeNotifierProvider(create: (_) => LoginModel(), child: const MyApp()),
   );

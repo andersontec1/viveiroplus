@@ -611,6 +611,7 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
   }
 
   Widget _buildSecaoPermissoes() {
+    final grupos = PermissionsHelper.categorizedKeys();
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -664,58 +665,103 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: PermissionsHelper.allKeys().map((chave) {
-              final rotulo = PermissionsHelper.labels[chave] ?? chave;
-              final isSelected = _permissoesSelecionadas.contains(chave);
-              return InkWell(
-                onTap: () {
-                  setState(() {
-                    if (isSelected) {
-                      _permissoesSelecionadas.remove(chave);
-                    } else {
-                      _permissoesSelecionadas.add(chave);
-                    }
-                  });
-                },
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: isSelected
-                        ? const LinearGradient(
-                            colors: [Color(0xFF045D3A), Color(0xFF049F56)],
-                          )
-                        : null,
-                    color: isSelected ? null : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFF049F56)
-                          : Colors.grey.withOpacity(0.3),
-                    ),
-                  ),
-                  child: Text(
-                    rotulo,
-                    style: TextStyle(
-                      color: isSelected
-                          ? Colors.white
-                          : const Color(0xFF045D3A),
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w500,
-                      fontSize: 13,
-                    ),
-                  ),
+          // Grupos de permissões por categoria (similar ao menu principal)
+          ...grupos.entries.map((entry) {
+            final categoria = entry.key;
+            final chaves = entry.value;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
                 ),
-              );
-            }).toList(),
-          ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.view_week,
+                          color: Color(0xFF049F56),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          categoria,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF045D3A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: chaves.map((chave) {
+                        final rotulo = PermissionsHelper.labels[chave] ?? chave;
+                        final isSelected = _permissoesSelecionadas.contains(
+                          chave,
+                        );
+                        return InkWell(
+                          onTap: () {
+                            setState(() {
+                              if (isSelected) {
+                                _permissoesSelecionadas.remove(chave);
+                              } else {
+                                _permissoesSelecionadas.add(chave);
+                              }
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: isSelected
+                                  ? const LinearGradient(
+                                      colors: [
+                                        Color(0xFF045D3A),
+                                        Color(0xFF049F56),
+                                      ],
+                                    )
+                                  : null,
+                              color: isSelected ? null : Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF049F56)
+                                    : Colors.grey.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Text(
+                              rotulo,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF045D3A),
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );
