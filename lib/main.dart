@@ -14,6 +14,7 @@ import 'package:viveiro_plus/screens/login_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'helpers/pwa_update_helper.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -36,6 +37,13 @@ void main() async {
   runApp(
     ChangeNotifierProvider(create: (_) => LoginModel(), child: const MyApp()),
   );
+
+  // Web: ouve atualizações do Service Worker e sugere atualizar a página
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    try {
+      PwaUpdateHelper.init(navigatorKey);
+    } catch (_) {}
+  });
 }
 
 class MyApp extends StatelessWidget {

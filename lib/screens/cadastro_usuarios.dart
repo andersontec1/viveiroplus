@@ -138,6 +138,7 @@ class _CadastroUsuarioScreenState extends State<CadastroUsuarioScreen> {
         'uid': uid,
         'nome': nome,
         'nomeusuario': nomeusuario,
+        'nomeUsuario': nomeusuario,
         'email': email,
         'funcao': _funcaoSelecionada,
         'permissoes': _permissoesSelecionadas,

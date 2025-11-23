@@ -32,6 +32,8 @@ class _TelaPainelWebState extends State<TelaPainelWeb> {
   Map<String, dynamic>? cicloAtivo;
   double? biomassaAtual;
   double? sobrevivenciaAtual;
+  String _fmtInt(num? n) =>
+      NumberFormat.decimalPattern('pt_BR').format((n ?? 0).toInt());
 
   List<Map<String, dynamic>> historicoAnalises = [];
   List<Map<String, dynamic>> historicoRacao = [];
@@ -350,7 +352,7 @@ class _TelaPainelWebState extends State<TelaPainelWeb> {
                                       'Início: ${cicloAtivo!['dataInicio'] != null ? DateFormat('dd/MM/yyyy').format(cicloAtivo!['dataInicio'].toDate()) : '-'}',
                                     ),
                                     Text(
-                                      'Estocagem: ${cicloAtivo!['quantidadeEstocada'] ?? '-'} camarões',
+                                      'Estocagem: ${_fmtInt(cicloAtivo!['quantidadeEstocada'] as num?)} camarões',
                                     ),
                                     Text(
                                       'Peso inicial: ${cicloAtivo!['pesoInicial'] ?? '-'} g',

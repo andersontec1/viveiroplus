@@ -23,6 +23,12 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
   final _filtroNotifier = ValueNotifier<String>('');
   final _funcaoNotifier = ValueNotifier<String>('todos');
 
+  // Cache de contexto do usuário atual para evitar leituras repetidas
+  String? _currentUserFuncao;
+  bool _podeGerenciarCache = false;
+  bool _segurancaCarregada = false;
+  String? _currentUserNome;
+
   final funcoesDisponiveis = [
     'todos',
     'fornecedor',
@@ -46,6 +52,7 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
   void initState() {
     super.initState();
     uidAtual = FirebaseAuth.instance.currentUser?.uid;
+    _inicializarSeguranca();
   }
 
   @override
@@ -54,6 +61,28 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
     _filtroNotifier.dispose();
     _funcaoNotifier.dispose();
     super.dispose();
+  }
+
+  Future<void> _inicializarSeguranca() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(currentUser.uid)
+          .get();
+      final data = doc.data();
+      final funcao = (data?['funcao'] as String?) ?? '';
+      final podeGerenciar = await SecurityHelper.podeGerenciarUsuarios();
+      setState(() {
+        _currentUserFuncao = funcao;
+        _podeGerenciarCache = podeGerenciar;
+        _segurancaCarregada = true;
+        _currentUserNome = (data?['nome'] as String?) ?? currentUser.uid;
+      });
+    } catch (_) {
+      // Mantém defaults em caso de erro
+    }
   }
 
   Future<void> _editarUsuario(
@@ -125,6 +154,12 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
         .doc(uid)
         .get();
     final dadosAnteriores = doc.data() ?? {};
+    final usernameAnterior =
+        (dadosAnteriores['nomeUsuario'] ?? dadosAnteriores['nomeusuario'] ?? '')
+            .toString();
+    if (usernameAnterior.isNotEmpty) {
+      usuarioController.text = usernameAnterior;
+    }
 
     // Buscar permissões atuais do usuário (normalizadas)
     List<String> permissoesSelecionadas = [];
@@ -328,19 +363,47 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
       }
 
       try {
-        // Dados para comparação na auditoria
-        final dadosNovos = {
-          'nome': novoNome,
-          'nomeusuario': novoUsuario,
-          'funcao': novaFuncao,
-          'permissoes': permissoesSelecionadas,
-        };
+        // Monta apenas os campos alterados para evitar sobrescrever com vazio
+        final Map<String, dynamic> updates = {};
+        if (novoNome != nomeAtual) updates['nome'] = novoNome;
+        if (novaFuncao != funcaoAtual) updates['funcao'] = novaFuncao;
+        // Sincroniza ambos campos de usuário somente se informado e alterado
+        if (novoUsuario.isNotEmpty && novoUsuario != usernameAnterior) {
+          updates['nomeusuario'] = novoUsuario;
+          updates['nomeUsuario'] = novoUsuario;
+        }
+        // Atualiza permissões se houve mudança
+        final permissoesAnteriorNorm = PermissionsHelper.normalize(
+          (dadosAnteriores['permissoes'] is List)
+              ? dadosAnteriores['permissoes']
+              : PermissionsHelper.forRole(funcaoAtual),
+        );
+        final iguais =
+            Set.of(permissoesAnteriorNorm).length ==
+                Set.of(permissoesSelecionadas).length &&
+            Set.of(permissoesAnteriorNorm).containsAll(permissoesSelecionadas);
+        if (!iguais) {
+          updates['permissoes'] = permissoesSelecionadas;
+        }
 
-        // Atualiza no Firestore
-        await FirebaseFirestore.instance
-            .collection('usuarios')
-            .doc(uid)
-            .update(dadosNovos);
+        if (updates.isNotEmpty) {
+          updates['alteradoEm'] = FieldValue.serverTimestamp();
+          updates['alteradoPor'] =
+              _currentUserNome ?? FirebaseAuth.instance.currentUser?.uid;
+        }
+
+        if (updates.isEmpty && novaSenha.isEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nenhuma alteração realizada.')),
+          );
+        } else {
+          // Atualiza no Firestore
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(uid)
+              .update(updates);
+        }
 
         // Atualiza senha se for o próprio usuário
         if (novaSenha.isNotEmpty &&
@@ -365,7 +428,9 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
         await AuditHelper.registrarEdicaoUsuario(
           uidEditado: uid,
           dadosAnteriores: dadosAnteriores,
-          dadosNovos: dadosNovos,
+          dadosNovos: updates.isEmpty
+              ? {if (novaSenha.isNotEmpty) 'senhaAlterada': true}
+              : updates,
         );
       } catch (e) {
         // Removido print para produção
@@ -878,39 +943,48 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
       };
     }
 
+    // Usa cache quando disponível para evitar N+1 leituras
+    if (_segurancaCarregada) {
+      final isCurrentUser = targetUid == currentUser.uid;
+      final podeEditarPorHierarquia = SecurityHelper.funcaoSuperior(
+        _currentUserFuncao ?? '',
+        targetFuncao,
+      );
+      return {
+        'podeEditar':
+            _podeGerenciarCache && (podeEditarPorHierarquia || isCurrentUser),
+        'podeExcluir':
+            _podeGerenciarCache && !isCurrentUser && podeEditarPorHierarquia,
+        'podeVerDetalhes': true,
+      };
+    }
+
+    // Fallback: busca uma vez caso o cache não esteja pronto
     try {
       final currentUserDoc = await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(currentUser.uid)
           .get();
-
-      if (!currentUserDoc.exists) {
-        return {
-          'podeEditar': false,
-          'podeExcluir': false,
-          'podeVerDetalhes': false,
-        };
-      }
-
-      final currentUserData = currentUserDoc.data()!;
-      final currentUserFuncao = currentUserData['funcao'] as String? ?? '';
-      final isCurrentUser = targetUid == currentUser.uid;
-
-      // Verificações básicas
+      final funcao = (currentUserDoc.data()?['funcao'] as String?) ?? '';
       final podeGerenciar = await SecurityHelper.podeGerenciarUsuarios();
+      setState(() {
+        _currentUserFuncao = funcao;
+        _podeGerenciarCache = podeGerenciar;
+        _segurancaCarregada = true;
+      });
+      final isCurrentUser = targetUid == currentUser.uid;
       final podeEditarPorHierarquia = SecurityHelper.funcaoSuperior(
-        currentUserFuncao,
+        funcao,
         targetFuncao,
       );
-
       return {
         'podeEditar':
             podeGerenciar && (podeEditarPorHierarquia || isCurrentUser),
         'podeExcluir':
             podeGerenciar && !isCurrentUser && podeEditarPorHierarquia,
-        'podeVerDetalhes': true, // Todos podem ver detalhes básicos
+        'podeVerDetalhes': true,
       };
-    } catch (e) {
+    } catch (_) {
       return {
         'podeEditar': false,
         'podeExcluir': false,
@@ -930,11 +1004,19 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
     final nomeUsuario = (data['nomeUsuario'] ?? data['nomeusuario'] ?? '')
         .toString();
     final funcao = data['funcao'] ?? 'indefinida';
-    final criadoEm = data['criadoEm'] != null
-        ? (data['criadoEm'] as Timestamp).toDate()
+    final criadoEmTs = data['criadoEm'];
+    final Timestamp? criadoEmTimestamp = (criadoEmTs is Timestamp)
+        ? criadoEmTs
         : null;
-    final ultimoLogin = data['ultimoLogin'] != null
-        ? (data['ultimoLogin'] as Timestamp).toDate()
+    final DateTime? criadoEm = criadoEmTimestamp != null
+        ? criadoEmTimestamp.toDate()
+        : null;
+    final ultimoLoginTs = data['ultimoLogin'];
+    final Timestamp? ultimoLoginTimestamp = (ultimoLoginTs is Timestamp)
+        ? ultimoLoginTs
+        : null;
+    final DateTime? ultimoLogin = ultimoLoginTimestamp != null
+        ? ultimoLoginTimestamp.toDate()
         : null;
 
     final permissoes = (data['permissoes'] is List)
@@ -955,6 +1037,7 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
               ),
               const SizedBox(width: 8),
               const Text('Detalhes do Usuário'),
+              const SizedBox(width: 6),
               if (isCurrentUser)
                 Container(
                   margin: const EdgeInsets.only(left: 8),
@@ -1032,24 +1115,7 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
                           ],
                         ),
                       ],
-                      const SizedBox(height: 8),
-                      if (email.isNotEmpty && email != 'Sem email')
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.email,
-                              size: 18,
-                              color: Colors.blue,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                email,
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                            ),
-                          ],
-                        ),
+                      const SizedBox(width: 6),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -1148,7 +1214,7 @@ class _TelaGerenciarUsuariosState extends State<TelaGerenciarUsuarios> {
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
-                                    p,
+                                    PermissionsHelper.labels[p] ?? p,
                                     style: const TextStyle(fontSize: 13),
                                   ),
                                 ),

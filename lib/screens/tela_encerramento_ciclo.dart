@@ -22,6 +22,8 @@ class TelaEncerramentoCiclo extends StatefulWidget {
 
 class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
   static const _corPrimaria = Color(0xFF049F56);
+  String _formatarMilhares(num? n) =>
+      NumberFormat.decimalPattern('pt_BR').format((n ?? 0).toInt());
 
   final _formKey = GlobalKey<FormState>();
   final _observacoesCtrl = TextEditingController();
@@ -229,7 +231,7 @@ class _TelaEncerramentoCicloState extends State<TelaEncerramentoCiclo> {
                                 'Duração: ${DateTime.now().difference((widget.cicloAtivo['dataInicio'] as Timestamp).toDate()).inDays} dias',
                               ),
                               Text(
-                                'Quantidade estocada: ${widget.cicloAtivo['quantidadeEstocada']} camarões',
+                                'Quantidade estocada: ${_formatarMilhares(widget.cicloAtivo['quantidadeEstocada'] as num?)} camarões',
                               ),
                             ],
                           ),

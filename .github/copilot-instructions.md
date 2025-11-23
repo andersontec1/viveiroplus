@@ -275,3 +275,20 @@ try {
 ---
 
 **Nota**: Este sistema é específico para aquicultura com foco em ciclos produtivos completos. Sempre considere o fluxo: Povoamento → Análises → Alimentação → Biomassa → Despesca → Encerramento.
+
+## Política de Respostas Concisas (Copilot)
+
+- Padrão: respostas curtas (até 1–2 frases) focadas na ação imediata.
+- Expandir somente quando o usuário pedir explicitamente (palavras-chave: "detalhar", "expandir", "explicar", "mostrar código completo").
+- Preferir listas de itens curtos para organizar passos ou opções; evitar parágrafos extensos sem necessidade.
+- Em tarefas multi-etapas ou arquiteturas complexas: iniciar conciso, oferecer expansão opcional (ex: "Posso detalhar cada passo se desejar").
+- Se houver ambiguidade crítica: fazer uma única pergunta clara antes de prosseguir; caso contrário não pedir confirmações desnecessárias.
+- Explicação para não técnico: fornecer primeiro versão simples; anexar versão técnica apenas se solicitada.
+- Comandos de controle: "modo detalhado on" ativa respostas extensas; "modo conciso" retorna ao padrão breve.
+- Evitar repetição de conteúdo não alterado; enfatizar apenas o delta ou novos arquivos modificados.
+- Código: mostrar apenas trechos relevantes; arquivo completo só se solicitado.
+- Nunca sacrificar precisão: se uma resposta curta puder induzir erro, adicionar nota de cautela ou sugerir expansão.
+
+Exemplo rápido:
+Usuário: "Atualiza a máscara de data para aceitar ano de 4 dígitos?" → Resposta padrão: "Sim; ajusto o formatter para validar 4 dígitos e preservo parsing atual. Posso mostrar o patch se quiser." 
+

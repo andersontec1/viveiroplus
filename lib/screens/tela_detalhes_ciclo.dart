@@ -509,6 +509,8 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
   }
 
   String _formatarData(DateTime dt) => DateFormat('dd/MM/yyyy').format(dt);
+  String _formatarMilhares(num? n) =>
+      NumberFormat.decimalPattern('pt_BR').format((n ?? 0).toInt());
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
@@ -663,7 +665,7 @@ class _TelaDetalhesCicloState extends State<TelaDetalhesCiclo> {
             _buildInfoRow('🏁 Encerrado', _formatarData(dataEncerramento)),
           _buildInfoRow(
             '🦐 Estocados',
-            '${widget.dadosCiclo['quantidadeEstocada']} pós-larvas',
+            '${_formatarMilhares(widget.dadosCiclo['quantidadeEstocada'] as num?)} pós-larvas',
           ),
           if (widget.dadosCiclo['pesoInicial'] != null &&
               widget.dadosCiclo['pesoInicial'] > 0)
